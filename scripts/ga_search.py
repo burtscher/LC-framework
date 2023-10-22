@@ -194,11 +194,7 @@ class Runner:
         preprocessors = self.args.preprocessors
 
         # set random seed
-        if self.args.randomseed is None:
-            seed = random.randrange(sys.maxsize)
-        else:
-            seed = self.args.randomseed
-        random.seed(seed)
+        random.seed(self.args.randomseed)
 
         # logger init
         if self.args.logger:
@@ -255,7 +251,7 @@ class Runner:
 
             # print info about this generation
             if not self.args.quiet:
-                print(f'~Generation {g + 1}~')
+                print(f'~Generation {g}~')
                 if self.args.debug:
                     print_population(self.popul)
                 else:
@@ -333,6 +329,16 @@ class Runner:
             self.popul.sort(reverse=True, key=get_comp_ratio)
         else:
             self.popul.sort(reverse=True, key=run_algo)
+
+        # print info about the final generation
+        if not self.args.quiet:
+            print(f'~Generation {self.generation_count}~')
+            if self.args.debug:
+                print_population(self.popul)
+            else:
+                print_reduced_population(self.popul)
+            print('~~~~~\n')
+
         self.best_algo_str = self.popul[0].algo_str
         self.best_comp_ratio = self.popul[0].comp_ratio
         self.ratio_history.append(self.best_comp_ratio)
@@ -399,6 +405,8 @@ def parse_comp_ratio(output) -> float:
 def component_list() -> list[str]:
     res = subprocess.run('./lc', shell=True, text=True, capture_output=True)
     (_, _, components) = res.stdout.partition("available components:")
+    components = components.splitlines()
+    components = components[1]
     components = components.split()
     return components
 
@@ -554,11 +562,17 @@ def main() -> None:
 
     # collect args
     args = parser.parse_args()
+
+    # set random seed if none is given
+    if args.randomseed is None:
+        args.randomseed = random.randrange(sys.maxsize)
+
     if args.debug:
         print(f'!Executing with the following arguments: {vars(args)}')
 
     if not args.quiet:
         print(f'~Parameters~')
+        print(f'Input file(s): {args.inputs}')
         print(f'Stages: {args.stages}')
         print(f'Generations: {args.generations}')
         print(f'Population size: {args.population}')
@@ -566,6 +580,7 @@ def main() -> None:
         print(f'Mutation rate: {args.mutation_rate}')
         print(f'Selection method: {args.SELECTION_METHOD}')
         print(f'Crossover method: {args.CROSSOVER_METHOD}')
+        print(f'Random seed: {args.randomseed}')
         print()
 
     # create runner

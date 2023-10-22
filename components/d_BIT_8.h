@@ -47,7 +47,7 @@ static __device__ inline bool d_BIT_8(int& csize, byte in [CS], byte out [CS], b
   const int sublane = tid % SWS;
   const int extra = csize % (64 * 64 / 8);
   const int size = (csize - extra) / 8;
-  assert(warpSize % SWS == 0);
+  assert(WS % SWS == 0);
 
   // works for warpsize of 64 on AMD because shfl does not include sync
 

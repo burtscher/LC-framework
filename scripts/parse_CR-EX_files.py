@@ -86,10 +86,25 @@ if len(files) > 0:
     
     # Skip to the acutal data for this file
     curr_row = 3
+    # Set these to zero so they can always be added without tracking if there is a preprocessor or not
+    first_enc = 0
+    first_dec = 0
+    second_enc = 0
+    second_dec = 0
     while curr_row <= skiprows:
         line = curr_file.readline()
         curr_row = curr_row + 1
-    file_tuples.append((file, int(input_size), curr_file))   
+        if 'preprocessor encoding time' in line and is_EX:
+          # Advance to next
+          line = curr_file.readline()
+          curr_row = curr_row + 1
+          first_enc = float(line.split(',')[0])
+          first_dec = float(line.split(',')[1])
+          if is_HOST and is_GPU:
+            second_enc = float(line.split(',')[2])
+            second_dec = float(line.split(',')[3])
+            
+    file_tuples.append((file, int(input_size), curr_file, first_enc, first_dec, second_enc, second_dec))
 else:
   print("ERROR: No files found")
   exit(-1)
@@ -104,7 +119,7 @@ if is_EX:
       writefile.write(" , , , , ")
       writefile.write(" , , , , ")
       writefile.write(" , , , ")
-      writefile.write(", ") #spacer
+      writefile.write(" , , ") #spacer
       for i in range(len(file_tuples)):
         writefile.write(", CR")
       writefile.write(", ") #spacer
@@ -123,8 +138,8 @@ if is_EX:
       ex_type = "host" if is_HOST else "dev"
       writefile.write(" , , , ")
       writefile.write(" , , ")
-      writefile.write(" , ")
-      writefile.write(", ") #spacer
+      writefile.write(" , , ")
+      writefile.write(" , ") #spacer
       for i in range(len(file_tuples)):
         writefile.write(", CR")
       writefile.write(", ") #spacer
@@ -153,7 +168,7 @@ if is_EX:
       writefile.write(", ") #spacer
       for tup in file_tuples:
         writefile.write(", " + tup[0].split('/')[-1])
-        writefile.write(", ") #spacer
+      writefile.write(", ") #spacer
       for tup in file_tuples:
         writefile.write(", " + tup[0].split('/')[-1])
       writefile.write(", ") #spacer
@@ -204,11 +219,11 @@ while True:
   for i in range(len(file_tuples)):
     crs.append(file_tuples[i][1] / int(pipeline_rows[i].split(',')[1]))
     if is_EX:
-      first_ctp.append(file_tuples[i][1] / float(pipeline_rows[i].split(',')[2]))
-      first_dtp.append(file_tuples[i][1] / float(pipeline_rows[i].split(',')[3]))
+      first_ctp.append(file_tuples[i][1] / (float(pipeline_rows[i].split(',')[2]) + file_tuples[i][3]))
+      first_dtp.append(file_tuples[i][1] / (float(pipeline_rows[i].split(',')[3]) + file_tuples[i][4]))
       if is_GPU and is_HOST:
-        second_ctp.append(file_tuples[i][1] / float(pipeline_rows[i].split(',')[4]))
-        second_dtp.append(file_tuples[i][1] / float(pipeline_rows[i].split(',')[5]))
+        second_ctp.append(file_tuples[i][1] / (float(pipeline_rows[i].split(',')[4]) + file_tuples[i][5]))
+        second_dtp.append(file_tuples[i][1] / (float(pipeline_rows[i].split(',')[5]) + file_tuples[i][6]))
 
   pipe_cr_hm = stats.hmean(crs)
   if pipe_cr_hm > best_hm[0]:

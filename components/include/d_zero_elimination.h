@@ -87,7 +87,7 @@ static __device__ inline bool d_ZEencodebyteshort(const T* const in, const int i
   }
 
   int pos = block_prefix_sum(cnt, temp_w);
-  if (tid == TPB - 1) temp_w[warpSize] = pos;
+  if (tid == TPB - 1) temp_w[WS] = pos;
   if constexpr (check) {
     if (__syncthreads_or(pos > datasize)) return false;
   } else {
@@ -108,7 +108,7 @@ static __device__ inline bool d_ZEencodebyteshort(const T* const in, const int i
     }
   }
 
-  datasize = temp_w[warpSize];
+  datasize = temp_w[WS];
   return true;
 }
 
@@ -119,15 +119,15 @@ static __device__ inline bool d_ZEencode1wordperthread(const T* const in, const 
 {
   byte* const bmout_b = (byte*)bmout;
   const int tid = threadIdx.x;
-  const int warps = TPB / warpSize;
-  const int warp = tid / warpSize;
-  const int lane = tid % warpSize;
+  const int warps = TPB / WS;
+  const int warp = tid / WS;
+  const int lane = tid % WS;
 
   // count non-zero values and output bitmaps
   const bool active = (tid < insize);
   const T val = active ? in[tid] : 0;
   const bool havenonzeroval = (active && (val != 0));
-#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)
+#if defined(WS) && (WS == 64)
   const unsigned long long tmp = __ballot_sync(~0, havenonzeroval);
   const int bm = (lane < 32) ? (int)tmp : (int)(tmp >> 32);
 #else  
@@ -135,7 +135,7 @@ static __device__ inline bool d_ZEencode1wordperthread(const T* const in, const 
 #endif  
   const int cnt = __popc(bm);
   const int subwarps = TPB / 32;
-#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)
+#if defined(WS) && (WS == 64)
   const int sublane = lane & 31;
   const int subwarp = threadIdx.x / 32;
   if (active && (sublane % 8 == 0)) bmout_b[tid / 8] = bm >> sublane;
@@ -187,9 +187,9 @@ static __device__ inline bool d_ZEencode2wordsperthread(const T* const in, const
 {
   byte* const bmout_b = (byte*)bmout;
   const int tid = threadIdx.x;
-  const int warps = TPB / warpSize;
-  const int warp = tid / warpSize;
-  const int lane = tid % warpSize;
+  const int warps = TPB / WS;
+  const int warp = tid / WS;
+  const int lane = tid % WS;
 
   // count non-zero values and output bitmaps
   const int tid1 = tid * 2;
@@ -200,7 +200,7 @@ static __device__ inline bool d_ZEencode2wordsperthread(const T* const in, const
   const T val2 = active2 ? in[tid2] : 0;
   const bool havenonzeroval1 = (active1 && (val1 != 0));
   const bool havenonzeroval2 = (active2 && (val2 != 0));
-#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)
+#if defined(WS) && (WS == 64)
   const unsigned long long temp = __ballot_sync(~0, havenonzeroval1);
   const int bm1 = (lane < 32) ? (int)temp : (int)(temp >> 32);  
   const unsigned long long temp1 = __ballot_sync(~0, havenonzeroval2);
@@ -211,7 +211,7 @@ static __device__ inline bool d_ZEencode2wordsperthread(const T* const in, const
 #endif 
   const int cnt = __popc(bm1) + __popc(bm2);
   const int comb = havenonzeroval1 + havenonzeroval2 * 2;
-#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)
+#if defined(WS) && (WS == 64)
   const int sublane = lane & 31;
   const int tmp1 = __shfl_sync(~0, comb, sublane / 2, 32) >> (lane % 2);
   const unsigned long long temp2 = __ballot_sync(~0, tmp1 & 1);
@@ -221,7 +221,7 @@ static __device__ inline bool d_ZEencode2wordsperthread(const T* const in, const
   const int tmp1 = __shfl_sync(~0, comb, lane / 2) >> (lane % 2);
   const int bmlo = __ballot_sync(~0, tmp1 & 1);
 #endif
-#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)
+#if defined(WS) && (WS == 64)
   const int tmp2 = __shfl_sync(~0, comb, 16 + sublane / 2, 32) >> (lane % 2);
   const unsigned long long temp3 = __ballot_sync(~0, tmp2 & 1);
   const int bmhi = (lane < 32) ? (int)temp3 : (int)(temp3 >> 32);
@@ -230,7 +230,7 @@ static __device__ inline bool d_ZEencode2wordsperthread(const T* const in, const
   const int bmhi = __ballot_sync(~0, tmp2 & 1);
 #endif
   const int subwarps = TPB / 32;
-#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)
+#if defined(WS) && (WS == 64)
   const int subwarp = threadIdx.x / 32;
   if ((((__ballot_sync(~0, active1) >> (lane & 32)) & 0xffff'ffff) != 0) && (sublane % 8 == 0)) bmout_b[subwarp * 8 + sublane / 8] = bmlo >> sublane;
   if ((((__ballot_sync(~0, active2) >> (lane & 32)) & 0xffff'ffff) != 0) && (sublane % 8 == 0)) bmout_b[subwarp * 8 + sublane / 8 + 4] = bmhi >> sublane;
@@ -281,8 +281,8 @@ static __device__ inline bool d_ZEencode4wordsperthread(const T* const in, const
 {
   byte* const bmout_b = (byte*)bmout;
   const int tid = threadIdx.x;
-  const int warp = tid / warpSize;
-  const int lane = tid % warpSize;
+  const int warp = tid / WS;
+  const int lane = tid % WS;
 
   // count non-zero values and output bitmaps
   const int tid1 = tid * 4;
@@ -301,7 +301,7 @@ static __device__ inline bool d_ZEencode4wordsperthread(const T* const in, const
   const bool havenonzeroval2 = (active2 && (val2 != 0));
   const bool havenonzeroval3 = (active3 && (val3 != 0));
   const bool havenonzeroval4 = (active4 && (val4 != 0));
-#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)
+#if defined(WS) && (WS == 64)
   const unsigned long long temp1 = __ballot_sync(~0, havenonzeroval1);
   const int bm1 = (lane < 32) ? (int)temp1 : (int)(temp1 >> 32);
   const unsigned long long temp2 = __ballot_sync(~0, havenonzeroval2);
@@ -318,7 +318,7 @@ static __device__ inline bool d_ZEencode4wordsperthread(const T* const in, const
 #endif  
   const int cnt = __popc(bm1) + __popc(bm2) + __popc(bm3) + __popc(bm4);
   const int comb = havenonzeroval1 + havenonzeroval2 * 2 + havenonzeroval3 * 4 + havenonzeroval4 * 8;
-#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)
+#if defined(WS) && (WS == 64)
   const int sublane = lane & 31;
   const int tmp1 = __shfl_sync(~0, comb, sublane / 4, 32) >> (lane % 4);
   const unsigned long long temp5 = __ballot_sync(~0, tmp1 & 1);
@@ -328,7 +328,7 @@ static __device__ inline bool d_ZEencode4wordsperthread(const T* const in, const
   const int tmp1 = __shfl_sync(~0, comb, lane / 4) >> (lane % 4);
   const int bmA = __ballot_sync(~0, tmp1 & 1);
 #endif  
-#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)
+#if defined(WS) && (WS == 64)
   const int tmp2 = __shfl_sync(~0, comb, 8 + sublane / 4, 32) >> (lane % 4);
   const unsigned long long temp6 = __ballot_sync(~0, tmp2 & 1);
   const int bmB = (lane < 32) ? (int)temp6 : (int)(temp6 >> 32);
@@ -336,7 +336,7 @@ static __device__ inline bool d_ZEencode4wordsperthread(const T* const in, const
   const int tmp2 = __shfl_sync(~0, comb, 8 + lane / 4) >> (lane % 4);
   const int bmB = __ballot_sync(~0, tmp2 & 1);
 #endif 
-#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)
+#if defined(WS) && (WS == 64)
   const int tmp3 = __shfl_sync(~0, comb, 16 + sublane / 4, 32) >> (lane % 4);
   const unsigned long long temp7 = __ballot_sync(~0, tmp3 & 1);
   const int bmC = (lane < 32) ? (int)temp7 : (int)(temp7 >> 32);
@@ -344,7 +344,7 @@ static __device__ inline bool d_ZEencode4wordsperthread(const T* const in, const
   const int tmp3 = __shfl_sync(~0, comb, 16 + lane / 4) >> (lane % 4);
   const int bmC = __ballot_sync(~0, tmp3 & 1);
 #endif
-#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)
+#if defined(WS) && (WS == 64)
   const int tmp4 = __shfl_sync(~0, comb, 24 + sublane / 4, 32) >> (lane % 4);
   const unsigned long long temp8 = __ballot_sync(~0, tmp4 & 1);
   const int bmD = (lane < 32) ? (int)temp8 : (int)(temp8 >> 32);
@@ -353,7 +353,7 @@ static __device__ inline bool d_ZEencode4wordsperthread(const T* const in, const
   const int bmD = __ballot_sync(~0, tmp4 & 1);
 #endif
 const int subwarps = TPB / 32;
-#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)
+#if defined(WS) && (WS == 64)
   const int subwarp = threadIdx.x / 32;
   if ((((__ballot_sync(~0, active1) >> (lane & 32)) & 0xffff'ffff) != 0) && (sublane % 8 == 0)) bmout_b[subwarp * 16 + sublane / 8] = bmA >> sublane;
   if ((((__ballot_sync(~0, active2) >> (lane & 32)) & 0xffff'ffff) != 0) && (sublane % 8 == 0)) bmout_b[subwarp * 16 + sublane / 8 + 4] = bmB >> sublane;
@@ -430,7 +430,7 @@ static __device__ inline bool d_ZEencodeXwordsperthread(const T* const in, const
 
   // pad with zeros if necessary to alignment point
   if constexpr (sizeof(T) * 8 > X) {  //MB: maybe somewhere else zero out last word of bitmap before a barrier and calling this function?
-    if (tid < warpSize) {
+    if (tid < WS) {
       const int base = (insize + (X - 1)) / 8;
       const int top = (insize + (sizeof(T) * 8 - 1)) / 8;
       if (base + tid < top) ((byte*)bmout)[base + tid] = 0;
@@ -439,7 +439,7 @@ static __device__ inline bool d_ZEencodeXwordsperthread(const T* const in, const
 
   // compute prefix sum
   int pos = block_prefix_sum(cnt, temp_w);
-  if (tid == TPB - 1) temp_w[warpSize] = pos;
+  if (tid == TPB - 1) temp_w[WS] = pos;
   if constexpr (check) {
     if (__syncthreads_or(pos > datasize)) return false;
   } else {
@@ -457,7 +457,7 @@ static __device__ inline bool d_ZEencodeXwordsperthread(const T* const in, const
     }
   }
 
-  datasize = temp_w[warpSize];
+  datasize = temp_w[WS];
   return true;
 }
 
@@ -526,8 +526,8 @@ static __device__ inline void d_ZEdecode_specialized(const int decsize, const T*
   if (sublane == 0) temp_w[subwarp] = cnt;
   __syncthreads();
 
-  if (tid < warpSize) {
-    const int lane = tid % warpSize;
+  if (tid < WS) {
+    const int lane = tid % WS;
     int sum = temp_w[lane];
     for (int i = 1; i < subwarps; i *= 2) {
       const int tmp = __shfl_up_sync(~0, sum, i);
@@ -571,13 +571,13 @@ static __device__ inline void d_ZEdecode1wordperthread(const int decsize, const 
   const int subwarps = TPB / subWS;
   const int subwarp = tid / subWS;
   const int sublane = tid % subWS;
-  const int warp = tid / warpSize;
-  const int lane = tid % warpSize;
+  const int warp = tid / WS;
+  const int lane = tid % WS;
 
   // read bitmap and count non-zero values
   const bool active = (tid < decsize);
   const bool havenonzeroval = (active && ((bmin_b[tid / 8] >> (tid % 8)) & 1));
-#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)
+#if defined(WS) && (WS == 64)
   const unsigned long long tmp = __ballot_sync(~0, havenonzeroval);
   const int bm = (lane < 32) ? (int)tmp : (int)(tmp >> 32);
 #else  
@@ -617,8 +617,8 @@ static __device__ inline void d_ZEdecode2wordsperthread(const int decsize, const
   const int subwarps = TPB / subWS;
   const int subwarp = tid / subWS;
   const int sublane = tid % subWS;
-  const int warp = tid / warpSize;
-  const int lane = tid % warpSize;
+  const int warp = tid / WS;
+  const int lane = tid % WS;
 
   // read bitmap and count non-zero values
   const int tid1 = tid * 2;
@@ -628,7 +628,7 @@ static __device__ inline void d_ZEdecode2wordsperthread(const int decsize, const
   const byte b = active1 ? (bmin_b[tid1 / 8] >> (tid1 % 8)) : 0;
   const bool havenonzeroval1 = (active1 && (b & 1));
   const bool havenonzeroval2 = (active2 && (b & 2));
-#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)
+#if defined(WS) && (WS == 64)
   const unsigned long long temp = __ballot_sync(~0, havenonzeroval1);
   const int bm1 = (lane < 32) ? (int)temp : (int)(temp >> 32);
   const unsigned long long temp1 = __ballot_sync(~0, havenonzeroval2);
@@ -672,8 +672,8 @@ static __device__ inline void d_ZEdecode4wordsperthread(const int decsize, const
   const int subwarps = TPB / subWS;
   const int subwarp = tid / subWS;
   const int sublane = tid % subWS;
-  const int warp = tid / warpSize;
-  const int lane = tid % warpSize;
+  const int warp = tid / WS;
+  const int lane = tid % WS;
 
   // read bitmap and count non-zero values
   const int tid1 = tid * 4;
@@ -689,7 +689,7 @@ static __device__ inline void d_ZEdecode4wordsperthread(const int decsize, const
   const bool havenonzeroval2 = (active2 && (b & 2));
   const bool havenonzeroval3 = (active3 && (b & 4));
   const bool havenonzeroval4 = (active4 && (b & 8));
-#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)
+#if defined(WS) && (WS == 64)
   const unsigned long long temp = __ballot_sync(~0, havenonzeroval1);
   const int bm1 = (lane < 32) ? (int)temp : (int)(temp >> 32);  
   const unsigned long long temp1 = __ballot_sync(~0, havenonzeroval2);

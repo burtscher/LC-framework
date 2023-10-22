@@ -44,15 +44,12 @@ static __device__ inline bool d_DIFF_1(int& csize, byte in [CS], byte out [CS], 
   type* const out_t = (type*)out;
   const int tid = threadIdx.x;
   const int size = csize / sizeof(type);  // words in chunk (rounded down)
-  const int beg = tid * size / TPB;
-  const int end = (tid + 1) * size / TPB;
 
   // compute difference sequence
-  type prev = (beg == 0) ? 0 : in_t[beg - 1];
-  for (int i = beg; i < end; i++) {
+  for (int i = tid; i < size; i += TPB) {
+    const type prev = (i == 0) ? 0 : in_t[i - 1];
     const type val = in_t[i];
     out_t[i] = val - prev;
-    prev = val;
   }
 
   // copy leftover bytes at end

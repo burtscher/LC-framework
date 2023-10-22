@@ -46,7 +46,7 @@ static __device__ inline bool d_BIT_4(int& csize, byte in [CS], byte out [CS], b
   const int sublane = tid % SWS;
   const int extra = csize % (32 * 32 / 8);
   const int size = (csize - extra) / 4;
-  assert(warpSize % SWS == 0);
+  assert(WS % SWS == 0);
 
   // works for warpsize of 64 on AMD because shfl does not include sync
 
@@ -101,7 +101,7 @@ static __device__ inline void d_iBIT_4(int& csize, byte in [CS], byte out [CS], 
   const int sublane = tid % SWS;
   const int extra = csize % (32 * 32 / 8);
   const int size = (csize - extra) / 4;
-  assert(warpSize % SWS == 0);
+  assert(WS % SWS == 0);
 
   for (int i = tid; i < size; i += TPB) {
     unsigned int a = in_w[i / 32 + sublane * (size / 32)];

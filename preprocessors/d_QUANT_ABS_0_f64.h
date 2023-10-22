@@ -51,7 +51,7 @@ static __global__ void d_QUANT_ABS_0_f64_kernel(const int len, byte* const __res
     const long long bin = (long long)round(scaled);
     const double recon = bin * eb2;
 
-    if ((std::abs(bin) >= maxbin) || (fabs(orig_f) >= threshold) || (recon < orig_f - errorbound) || (recon > orig_f + errorbound) || (fabs(orig_f - recon) > errorbound) || (orig_f != orig_f)) {  // last check is to handle NaNs
+    if ((bin >= maxbin) || (bin <= -maxbin) || (fabs(orig_f) >= threshold) || (recon < orig_f - errorbound) || (recon > orig_f + errorbound) || (fabs(orig_f - recon) > errorbound) || (orig_f != orig_f)) {  // last check is to handle NaNs
       assert(((data_i[idx] >> mantissabits) & 0x7ff) != 0);
     } else {
       data_i[idx] = (bin << 1) ^ (bin >> 63);  // TCMS encoding, 'sign' and 'exponent' fields are zero

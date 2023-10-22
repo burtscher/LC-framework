@@ -37,46 +37,61 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 */
 
 
-#ifndef max_reduction
-#define max_reduction
+#ifndef prefix_sum
+#define prefix_sum
 
 template <typename T>
-static __device__ inline T block_max_reduction(T val, void* buffer)  // returns max to all threads
+static __device__ inline T block_prefix_sum(T val, void* buffer)  // returns inclusive prefix sum
 {
-  const int lane = threadIdx.x % warpSize;
-  const int warp = threadIdx.x / warpSize;
-  const int warps = TPB / warpSize;
-  T* const s_carry = (T*)buffer;
-  assert(warpSize >= warps);
+  const int lane = threadIdx.x % WS;
+  const int warp = threadIdx.x / WS;
+  const int warps = TPB / WS;
+  T* const carry = (T*)buffer;
+  assert(WS >= warps);
 
-  val = max(val, __shfl_xor_sync(~0, val, 1));
-  val = max(val, __shfl_xor_sync(~0, val, 2));
-  val = max(val, __shfl_xor_sync(~0, val, 4));
-  val = max(val, __shfl_xor_sync(~0, val, 8));
-  val = max(val, __shfl_xor_sync(~0, val, 16));
-#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)
-  val = max(val, __shfl_xor_sync(~0, val, 32));
+  T tmp = __shfl_up_sync(~0, val, 1);
+  if (lane >= 1) val += tmp;
+  tmp = __shfl_up_sync(~0, val, 2);
+  if (lane >= 2) val += tmp;
+  tmp = __shfl_up_sync(~0, val, 4);
+  if (lane >= 4) val += tmp;
+  tmp = __shfl_up_sync(~0, val, 8);
+  if (lane >= 8) val += tmp;
+  tmp = __shfl_up_sync(~0, val, 16);
+  if (lane >= 16) val += tmp;
+#if defined(WS) && (WS == 64)
+  tmp = __shfl_up_sync(~0, val, 32);
+  if (lane >= 32) val += tmp;
 #endif
-  if (lane == 0) s_carry[warp] = val;
-  __syncthreads();  // s_carry written
 
-  if (warps > 1) {
+  if (lane == WS - 1) carry[warp] = val;
+  __syncthreads();  // carry written
+
+  if constexpr (warps > 1) {
     if (warp == 0) {
-      val = (lane < warps) ? s_carry[lane] : 0;
-      val = max(val, __shfl_xor_sync(~0, val, 1));
-      val = max(val, __shfl_xor_sync(~0, val, 2));
-      val = max(val, __shfl_xor_sync(~0, val, 4));
-      val = max(val, __shfl_xor_sync(~0, val, 8));
-      val = max(val, __shfl_xor_sync(~0, val, 16));
-#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)
-      val = max(val, __shfl_xor_sync(~0, val, 32));
+      T sum = carry[lane];
+      T tmp = __shfl_up_sync(~0, sum, 1);
+      if (lane >= 1) sum += tmp;
+      tmp = __shfl_up_sync(~0, sum, 2);
+      if (lane >= 2) sum += tmp;
+      tmp = __shfl_up_sync(~0, sum, 4);
+      if (lane >= 4) sum += tmp;
+      tmp = __shfl_up_sync(~0, sum, 8);
+      if (lane >= 8) sum += tmp;
+      tmp = __shfl_up_sync(~0, sum, 16);
+      if (lane >= 16) sum += tmp;
+#if defined(WS) && (WS == 64)
+      tmp = __shfl_up_sync(~0, sum, 32);
+      if (lane >= 32) sum += tmp;
 #endif
-      s_carry[lane] = val;
+      carry[lane] = sum;
     }
-    __syncthreads();  // s_carry updated
+    __syncthreads();  // carry updated
+
+    if (warp > 0) val += carry[warp - 1];
   }
 
-  return s_carry[0];
+  return val;
 }
 
 #endif

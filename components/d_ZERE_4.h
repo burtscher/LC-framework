@@ -54,14 +54,14 @@ static __device__ inline bool d_ZERE_4(int& csize, byte in [CS], byte out [CS], 
 
   // compute bitmap and copy non-zero values
   int pos;
-  d_ZEencode(in_t, csize / sizeof(type), out_t, pos, bitmap, (int*)&temp[CS - 2 * warpSize * sizeof(int)]);
+  d_ZEencode(in_t, csize / sizeof(type), out_t, pos, bitmap, (int*)&temp[CS - 2 * WS * sizeof(int)]);
   pos *= sizeof(type);
 
   // compress bitmap
   const int numb = (num * sizeof(type) + 8 - 1) / 8;  // number of subchunks (rounded up)
   int loc = CS - 4 - extra - (pos + numb);
   if (loc <= 0) return false;
-  if (!d_REencode<byte, CS / 8 / sizeof(type), true>((byte*)bitmap, num * sizeof(type), &out[pos + numb], loc, &out[pos], (int*)&temp[CS - 4 * warpSize * sizeof(int)])) return false;
+  if (!d_REencode<byte, CS / 8 / sizeof(type), true>((byte*)bitmap, num * sizeof(type), &out[pos + numb], loc, &out[pos], (int*)&temp[CS - 4 * WS * sizeof(int)])) return false;
   const int new_size = pos + numb + loc + extra + 4;
 
   // copy leftover bytes at end
@@ -98,11 +98,11 @@ static __device__ inline void d_iZERE_4(int& csize, byte in [CS], byte out [CS],
   // decompress bitmap
   const int num = (csize / sizeof(type) + bits - 1) / bits;  // number of subchunks (rounded up)
   const int numb = (num * sizeof(type) + 8 - 1) / 8;  // number of subchunks (rounded up)
-  d_REdecode<byte, CS / 8 / sizeof(type)>(num * sizeof(type), &in[pos + numb], &in[pos], (byte*)bitmap, (int*)&temp[CS - warpSize * sizeof(int)]);
+  d_REdecode<byte, CS / 8 / sizeof(type)>(num * sizeof(type), &in[pos + numb], &in[pos], (byte*)bitmap, (int*)&temp[CS - WS * sizeof(int)]);
   __syncthreads();
 
   // copy non-zero values based on bitmap
-  d_ZEdecode(csize / sizeof(type), in_t, bitmap, out_t, (int*)&temp[CS - 2 * warpSize * sizeof(int)]);
+  d_ZEdecode(csize / sizeof(type), in_t, bitmap, out_t, (int*)&temp[CS - 2 * WS * sizeof(int)]);
 
   // copy leftover bytes
   if constexpr (sizeof(type) > 1) {

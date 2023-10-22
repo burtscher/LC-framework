@@ -118,7 +118,7 @@ static inline void h_QUANT_REL_R_f64(int& size, byte*& data, const int paramc, c
         const double abs_recon_f = h_QUANT_REL_R_f64_pow2approx((bin + rnd) * log2eb);
         const double lower = abs_orig_f / (1 + errorbound);
         const double upper = abs_orig_f * (1 + errorbound);
-        if ((std::abs(bin) >= maxbin) || (abs_orig_f >= threshold) || (abs_recon_f < lower) || (abs_recon_f > upper) || (abs_recon_f == 0) || !std::isfinite(abs_recon_f)) {
+        if ((bin >= maxbin) || (bin <= -maxbin) || (abs_orig_f >= threshold) || (abs_recon_f < lower) || (abs_recon_f > upper) || (abs_recon_f == 0) || !std::isfinite(abs_recon_f)) {
           count++;  // informal only
         } else {
           bin = (bin << 1) ^ (bin >> 63);  // TCMS encoding

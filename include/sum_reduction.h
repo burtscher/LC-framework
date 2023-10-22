@@ -37,60 +37,46 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 */
 
 
-#ifndef max_scan
-#define max_scan
+#ifndef sum_reduction
+#define sum_reduction
 
 template <typename T>
-static __device__ inline T block_max_scan(T val, void* buffer)  // returns inclusive maximum scan
+static __device__ inline T block_sum_reduction(T val, void* buffer)  // returns sum to all threads
 {
-  const int lane = threadIdx.x % warpSize;
-  const int warp = threadIdx.x / warpSize;
-  const int warps = TPB / warpSize;
-  T* const carry = (T*)buffer;
-  assert(warpSize >= warps);
+  const int lane = threadIdx.x % WS;
+  const int warp = threadIdx.x / WS;
+  const int warps = TPB / WS;
+  T* const s_carry = (T*)buffer;
+  assert(WS >= warps);
 
-  T tmp = __shfl_up_sync(~0, val, 1);
-  if (lane >= 1) val = max(val, tmp);
-  tmp = __shfl_up_sync(~0, val, 2);
-  if (lane >= 2) val = max(val, tmp);
-  tmp = __shfl_up_sync(~0, val, 4);
-  if (lane >= 4) val = max(val, tmp);
-  tmp = __shfl_up_sync(~0, val, 8);
-  if (lane >= 8) val = max(val, tmp);
-  tmp = __shfl_up_sync(~0, val, 16);
-  if (lane >= 16) val = max(val, tmp);
-#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)
-  tmp = __shfl_up_sync(~0, val, 32);
-  if (lane >= 32) val = max(val, tmp);
+  val += __shfl_xor_sync(~0, val, 1);  // MB: use reduction on 8.6 CC
+  val += __shfl_xor_sync(~0, val, 2);
+  val += __shfl_xor_sync(~0, val, 4);
+  val += __shfl_xor_sync(~0, val, 8);
+  val += __shfl_xor_sync(~0, val, 16);
+#if defined(WS) && (WS == 64)
+  val += __shfl_xor_sync(~0, val, 32);
 #endif
-  if (lane == warpSize - 1) carry[warp] = val;
-  __syncthreads();  // carry written
+  if (lane == 0) s_carry[warp] = val;
+  __syncthreads();  // s_carry written
 
-  if (warps > 1) {
+  if constexpr (warps > 1) {
     if (warp == 0) {
-      T res = carry[lane];
-      T tmp = __shfl_up_sync(~0, res, 1);
-      if (lane >= 1) res = max(res, tmp);
-      tmp = __shfl_up_sync(~0, res, 2);
-      if (lane >= 2) res = max(res, tmp);
-      tmp = __shfl_up_sync(~0, res, 4);
-      if (lane >= 4) res = max(res, tmp);
-      tmp = __shfl_up_sync(~0, res, 8);
-      if (lane >= 8) res = max(res, tmp);
-      tmp = __shfl_up_sync(~0, res, 16);
-      if (lane >= 16) res = max(res, tmp);
-#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)
-      tmp = __shfl_up_sync(~0, res, 32);
-      if (lane >= 32) res = max(res, tmp);
+      val = (lane < warps) ? s_carry[lane] : 0;
+      val += __shfl_xor_sync(~0, val, 1);  // MB: use reduction on 8.6 CC
+      val += __shfl_xor_sync(~0, val, 2);
+      val += __shfl_xor_sync(~0, val, 4);
+      val += __shfl_xor_sync(~0, val, 8);
+      val += __shfl_xor_sync(~0, val, 16);
+#if defined(WS) && (WS == 64)
+      val += __shfl_xor_sync(~0, val, 32);
 #endif
-      carry[lane] = res;
+      s_carry[lane] = val;
     }
-    __syncthreads();  // carry updated
-
-    if (warp > 0) val = max(val, carry[warp - 1]);
+    __syncthreads();  // s_carry updated
   }
 
-  return val;
+  return s_carry[0];
 }
 
 #endif

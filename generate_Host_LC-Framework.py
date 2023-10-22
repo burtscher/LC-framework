@@ -88,10 +88,14 @@ for f in cfiles:
 cpucomps.sort()
 
 # update constants
-with open('./components/include/consts.h', 'w') as f:
-  f.write("static const int CS = 1024 * 16;  // chunk size (in bytes) [must be multiple of 8]\n")
-  f.write("static const int TPB = 512;  // threads per block [must be power of 2 and at least 128]\n")
-  f.write("static const int WS = 32;  // warp size [must match number of bits in an int]\n")
+with open('./include/consts.h', 'w') as f:
+  f.write("static const int CS = 1024 * 16;  // chunk size (in bytes) [do not change]\n")
+#  f.write("static const int TPB = 512;  // threads per block [must be power of 2 and at least 128]\n")
+#  f.write("#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)\n")
+#  f.write("#define WS 64\n")
+#  f.write("#else\n")
+#  f.write("#define WS 32\n")
+#  f.write("#endif\n")
 
 # update enum.h
 update_enum('./components/include/CPUcomponents.h', cpucomps, 'CPUcomponents')

@@ -46,8 +46,8 @@ static __device__ inline bool d_RLE_4(int& csize, byte in [CS], byte out [CS], b
   const int elems = csize / (int)sizeof(type);
   const int extra = csize % (int)sizeof(type);
   const int tid = threadIdx.x;
-  const int warp = tid / warpSize;
-  const int lane = tid % warpSize;
+  const int warp = tid / WS;
+  const int lane = tid % WS;
   const int beg = tid * elems / TPB;
   const int end = (tid + 1) * elems / TPB;
   assert(CS / (int)sizeof(type) / TPB <= (int)sizeof(int) * 8);
@@ -76,7 +76,7 @@ static __device__ inline bool d_RLE_4(int& csize, byte in [CS], byte out [CS], b
   }
 
   // compute inclusive prefix sum and make exclusive
-  int vpos = block_prefix_sum(nrepeat, &s_tmp[warpSize]) - nrepeat;
+  int vpos = block_prefix_sum(nrepeat, &s_tmp[WS]) - nrepeat;
 
   // compute inclusive max scan and make exclusive (with -1)
   const int msres = block_max_scan(loc, &s_tmp[0]);
@@ -101,20 +101,20 @@ static __device__ inline bool d_RLE_4(int& csize, byte in [CS], byte out [CS], b
   }
 
   // compute prefix sum
-  int cpos = block_prefix_sum(cnt, &s_tmp[warpSize * 2]);
+  int cpos = block_prefix_sum(cnt, &s_tmp[WS * 2]);
   const int tot = vpos * (int)sizeof(type) + extra + cpos + 2;
   if (tid == TPB - 1) {
-    s_tmp[warpSize * 3] = vpos * (int)sizeof(type) + extra;
-    s_tmp[warpSize * 3 + 1] = tot;
+    s_tmp[WS * 3] = vpos * (int)sizeof(type) + extra;
+    s_tmp[WS * 3 + 1] = tot;
   }
   if (__syncthreads_or(tot >= CS)) return false;
 
   // copy leftover bytes
-  const int wpos = s_tmp[warpSize * 3];
+  const int wpos = s_tmp[WS * 3];
   if (tid < extra) {
     out[wpos - extra + tid] = in[csize - extra + tid];
   }
-  csize = s_tmp[warpSize * 3 + 1];
+  csize = s_tmp[WS * 3 + 1];
 
   // write counts to output
   cpos -= cnt;
@@ -150,9 +150,9 @@ static __device__ inline void d_iRLE_4(int& csize, byte in [CS], byte out [CS], 
   const int cpos = (((int)in[csize - 1]) << 8) | in[csize - 2];
   const int extra = cpos % (int)sizeof(type);
   const int tid = threadIdx.x;
-  const int warp = tid / warpSize;
-  const int lane = tid % warpSize;
-  const int warps = TPB / warpSize;
+  const int warp = tid / WS;
+  const int lane = tid % WS;
+  const int warps = TPB / WS;
 
   int rpos = 0;
   int wpos = 0;
@@ -163,7 +163,7 @@ static __device__ inline void d_iRLE_4(int& csize, byte in [CS], byte out [CS], 
   while (bot < csize - 2) {
     int rsum = 0;
     int wsum = 0;
-    int pos = top - warpSize + lane;
+    int pos = top - WS + lane;
     if ((bot <= pos) && (pos < csize - 2)) {
       const int rep = in[pos];  // int instead of byte
       const int repeat = (rep & 0x7f) + 1;
@@ -175,7 +175,7 @@ static __device__ inline void d_iRLE_4(int& csize, byte in [CS], byte out [CS], 
     rsum += __shfl_xor_sync(~0, rsum, 4);
     rsum += __shfl_xor_sync(~0, rsum, 8);
     rsum += __shfl_xor_sync(~0, rsum, 16);
-#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)
+#if defined(WS) && (WS == 64)
     rsum += __shfl_xor_sync(~0, rsum, 32);
 #endif
     wsum += __shfl_xor_sync(~0, wsum, 1);
@@ -183,7 +183,7 @@ static __device__ inline void d_iRLE_4(int& csize, byte in [CS], byte out [CS], 
     wsum += __shfl_xor_sync(~0, wsum, 4);
     wsum += __shfl_xor_sync(~0, wsum, 8);
     wsum += __shfl_xor_sync(~0, wsum, 16);
-#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)
+#if defined(WS) && (WS == 64)
     wsum += __shfl_xor_sync(~0, wsum, 32);
 #endif
     rpos += rsum;
@@ -195,13 +195,13 @@ static __device__ inline void d_iRLE_4(int& csize, byte in [CS], byte out [CS], 
         // write repeating values
         const int repeat = (rep & 0x7f) + 1;
         const type val = in_t[rpos - 1];
-        for (int j = lane; j < repeat; j += warpSize) {
+        for (int j = lane; j < repeat; j += WS) {
           out_t[wpos + j] = val;
         }
       } else {
         // write non-repeating values
         const int nrepeat = rep + 1;
-        for (int j = lane; j < nrepeat; j += warpSize) {
+        for (int j = lane; j < nrepeat; j += WS) {
           out_t[wpos + j] = in_t[rpos + j];
         }
       }

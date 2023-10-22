@@ -76,7 +76,7 @@ static inline void h_QUANT_ABS_R_f64(int& size, byte*& data, const int paramc, c
     const double rnd = inv_mask * (((rnd2 << 32) | rnd1) & mask) - 0.5;  // random noise
     const double recon = (bin + rnd) * errorbound;
 
-    if ((std::abs(bin) >= maxbin) || (fabs(orig_f) >= threshold) || (recon < orig_f - errorbound) || (recon > orig_f + errorbound) || (fabs(orig_f - recon) > errorbound) || (orig_f != orig_f)) {  // last check is to handle NaNs
+    if ((bin >= maxbin) || (bin <= -maxbin) || (fabs(orig_f) >= threshold) || (recon < orig_f - errorbound) || (recon > orig_f + errorbound) || (fabs(orig_f - recon) > errorbound) || (orig_f != orig_f)) {  // last check is to handle NaNs
       count++;  // informal only
       assert(((data_i[i] >> mantissabits) & 0x7ff) != 0);
     } else {

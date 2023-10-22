@@ -64,7 +64,7 @@ static __global__ void d_QUANT_ABS_R_f32_kernel(const int len, byte* const __res
     const float rnd = inv_mask * (d_QUANT_ABS_R_f32_hash(idx + len) & mask) - 0.5f;  // random noise
     const float recon = (bin + rnd) * errorbound;
 
-    if ((std::abs(bin) >= maxbin) || (fabsf(orig_f) >= threshold) || (recon < orig_f - errorbound) || (recon > orig_f + errorbound) || (fabsf(orig_f - recon) > errorbound) || (orig_f != orig_f)) {  // last check is to handle NaNs
+    if ((bin >= maxbin) || (bin <= -maxbin) || (fabsf(orig_f) >= threshold) || (recon < orig_f - errorbound) || (recon > orig_f + errorbound) || (fabsf(orig_f - recon) > errorbound) || (orig_f != orig_f)) {  // last check is to handle NaNs
       assert(((data_i[idx] >> mantissabits) & 0xff) != 0);
     } else {
       data_i[idx] = (bin << 1) ^ (bin >> 31);  // TCMS encoding, 'sign' and 'exponent' fields are zero

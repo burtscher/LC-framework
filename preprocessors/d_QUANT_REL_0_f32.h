@@ -94,7 +94,7 @@ static __global__ void d_QUANT_REL_0_f32_kernel(const int len, byte* const __res
         const float abs_recon_f = d_QUANT_REL_0_f32_pow2approxf(bin * log2eb);
         const float lower = abs_orig_f / (1 + errorbound);
         const float upper = abs_orig_f * (1 + errorbound);
-        if (!((abs(bin) >= maxbin) || (abs_orig_f >= threshold) || (abs_recon_f < lower) || (abs_recon_f > upper) || (abs_recon_f == 0) || !isfinite(abs_recon_f))) {
+        if (!((bin >= maxbin) || (bin <= -maxbin) || (abs_orig_f >= threshold) || (abs_recon_f < lower) || (abs_recon_f > upper) || (abs_recon_f == 0) || !isfinite(abs_recon_f))) {
           bin = (bin << 1) ^ (bin >> 31);  // TCMS encoding
           bin = (bin + 1) << 1;
           if (orig_i < 0) bin |= 1;  // include sign

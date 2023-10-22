@@ -40,9 +40,9 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 static __device__ inline bool d_CLOG_2(int& csize, byte in [CS], byte out [CS], byte temp [CS])
 {
   const int tid = threadIdx.x;
-  const int lane = threadIdx.x % warpSize;
-  const int warp = threadIdx.x / warpSize;
-  const int warps = TPB / warpSize;
+  const int lane = threadIdx.x % WS;
+  const int warp = threadIdx.x / WS;
+  const int warps = TPB / WS;
 
   using type = unsigned short;  // must be unsigned
   assert(std::is_unsigned<type>::value);
@@ -51,7 +51,7 @@ static __device__ inline bool d_CLOG_2(int& csize, byte in [CS], byte out [CS], 
   const int CB = (32 - __clz(sizeof(type))) + 3;  // counter bits
   assert((1 << CB) > TB);
   assert((1 << (CB - 1)) <= TB);
-  assert(warpSize >= SC);
+  assert(WS >= SC);
 
   // type casts
   type* in_t = (type*)in;
@@ -60,7 +60,7 @@ static __device__ inline bool d_CLOG_2(int& csize, byte in [CS], byte out [CS], 
 
   byte* ln = temp;
   int* bits = (int*)&temp[SC];
-  int* total_bits = (int*)&bits[warpSize];
+  int* total_bits = (int*)&bits[WS];
 
   // determine bits needed for each subchunk
   for (int i = warp; i < SC; i += warps) {
@@ -69,7 +69,7 @@ static __device__ inline bool d_CLOG_2(int& csize, byte in [CS], byte out [CS], 
 
     type max_val = 0;
     // max of values for each thread
-    for (int j = beg + lane; j < end; j += warpSize) {
+    for (int j = beg + lane; j < end; j += WS) {
       max_val = max(max_val, in_t[j]);
     }
 
@@ -79,7 +79,7 @@ static __device__ inline bool d_CLOG_2(int& csize, byte in [CS], byte out [CS], 
     max_val = max(max_val, __shfl_xor_sync(~0, max_val, 4));
     max_val = max(max_val, __shfl_xor_sync(~0, max_val, 8));
     max_val = max(max_val, __shfl_xor_sync(~0, max_val, 16));
-#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)
+#if defined(WS) && (WS == 64)
     max_val = max(max_val, __shfl_xor_sync(~0, max_val, 32));
 #endif
 
@@ -106,7 +106,7 @@ static __device__ inline bool d_CLOG_2(int& csize, byte in [CS], byte out [CS], 
     if (lane >= 8) val += tmp;
     tmp = __shfl_up_sync(~0, val, 16);
     if (lane >= 16) val += tmp;
-#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)
+#if defined(WS) && (WS == 64)
     tmp = __shfl_up_sync(~0, val, 32);
     if (lane >= 32) val += tmp;
 #endif
@@ -149,7 +149,7 @@ static __device__ inline bool d_CLOG_2(int& csize, byte in [CS], byte out [CS], 
     const int beg = i * size / SC;
     const int end = (i + 1) * size / SC;
     const int offs = bits[i] + SC * CB + 16;
-    for (int j = beg + lane; j < end; j += warpSize) {
+    for (int j = beg + lane; j < end; j += WS) {
       const unsigned int val = (unsigned int)in_t[j];
       const int loc = offs + (j - beg) * logn;
       const int pos = loc / TB;
@@ -173,8 +173,8 @@ static __device__ inline bool d_CLOG_2(int& csize, byte in [CS], byte out [CS], 
 static __device__ inline void d_iCLOG_2(int& csize, byte in [CS], byte out [CS], byte temp [CS])
 {
   const int tid = threadIdx.x;
-  const int lane = threadIdx.x % warpSize;
-  const int warp = threadIdx.x / warpSize;
+  const int lane = threadIdx.x % WS;
+  const int warp = threadIdx.x / WS;
 
   using type = unsigned short;  // must be unsigned
   assert(std::is_unsigned<type>::value);
@@ -183,7 +183,7 @@ static __device__ inline void d_iCLOG_2(int& csize, byte in [CS], byte out [CS],
   const int CB = (32 - __clz(sizeof(type))) + 3;  // counter bits
   assert((1 << CB) > TB);
   assert((1 << (CB - 1)) <= TB);
-  assert(warpSize >= SC);
+  assert(WS >= SC);
 
   // type casts
   type* in_t = (type*)in;
@@ -223,7 +223,7 @@ static __device__ inline void d_iCLOG_2(int& csize, byte in [CS], byte out [CS],
     if (lane >= 8) val += tmp;
     tmp = __shfl_up_sync(~0, val, 16);
     if (lane >= 16) val += tmp;
-#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)
+#if defined(WS) && (WS == 64)
     tmp = __shfl_up_sync(~0, val, 32);
     if (lane >= 32) val += tmp;
 #endif
@@ -233,13 +233,13 @@ static __device__ inline void d_iCLOG_2(int& csize, byte in [CS], byte out [CS],
   __syncthreads();
 
   // decode data values
-  for (int i = warp; i < SC; i += TPB / warpSize) {
+  for (int i = warp; i < SC; i += TPB / WS) {
     const int logn = ln[i];
     const int beg = i * size / SC;
     const int end = (i + 1) * size / SC;
     const type mask = (sizeof(type) < 8) ? ((1ULL << logn) - 1) : ((logn == 64) ? (~0ULL) : ((1ULL << logn) - 1));
     const int offs = bits[i] + SC * CB + 16;
-    for (int j = beg + lane; j < end; j += warpSize) {
+    for (int j = beg + lane; j < end; j += WS) {
       const int loc = offs + (j - beg) * logn;
       const int pos = loc / TB;
       const int shift = loc % TB;

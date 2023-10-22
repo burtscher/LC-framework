@@ -37,6 +37,8 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 */
 
 
+//#define NDEBUG
+
 using byte = unsigned char;
 
 static const int max_stages = 8;  // cannot be more than 8
@@ -56,34 +58,29 @@ static const int max_stages = 8;  // cannot be more than 8
 #include <ctime>
 #include <regex>
 #include <sys/time.h>
-#include "components/include/consts.h"
-#ifndef USE_GPU
 
+#include "include/consts.h"
+#ifndef USE_GPU
   #ifndef USE_CPU
   //no CPU and no GPU
   #else
   #include "preprocessors/include/CPUpreprocessors.h"
   #include "components/include/CPUcomponents.h"
   #endif
-
 #else
+  #include <cuda.h>
+  #include "include/max_reduction.h"
+  #include "include/max_scan.h"
+  #include "include/prefix_sum.h"
+  #include "include/sum_reduction.h"
 
   #ifndef USE_CPU
-  #include <cuda.h>
-  #include "components/include/sum_reduction.h"  //MB: move
-  #include "components/include/max_scan.h"  //MB: move
-  #include "components/include/prefix_sum.h"  //MB: move
   #include "preprocessors/include/GPUpreprocessors.h"
   #include "components/include/GPUcomponents.h"
   #else
-  #include <cuda.h>
-  #include "components/include/sum_reduction.h"  //MB: move
-  #include "components/include/max_scan.h"  //MB: move
-  #include "components/include/prefix_sum.h"  //MB: move
   #include "preprocessors/include/preprocessors.h"
   #include "components/include/components.h"
   #endif
-
 #endif
 #include "verifiers/include/verifiers.h"
 
@@ -175,6 +172,7 @@ static void h_preprocess_decode(int& hpredecsize, byte*& hpredecdata, std::vecto
 #ifdef USE_GPU
 static void __global__ initBestSize(unsigned short* const bestSize, const int chunks)
 {
+  if ((threadIdx.x == 0) && (WS != warpSize)) {printf("ERROR: WS must be %d\n\n", warpSize); __trap();}  // debugging only
   for (int i = threadIdx.x; i < chunks; i += TPB) {
     bestSize[i] = CS;
   }
@@ -213,7 +211,7 @@ static __global__ void d_reset()
 
 static inline __device__ int propagate_carry(const int value, const int chunkID, volatile int fullcarry [], volatile int partcarry [], volatile byte status [], int* const s_fullc)
 {
-  const int lane = threadIdx.x % warpSize;
+  const int lane = threadIdx.x % WS;
   const bool lastthread = (threadIdx.x == (TPB - 1));
 
   if (lastthread) {
@@ -230,7 +228,7 @@ static inline __device__ int propagate_carry(const int value, const int chunkID,
   }
 
   if (chunkID > 0) {
-    if (threadIdx.x + warpSize >= TPB) {  // last warp
+    if (threadIdx.x + WS >= TPB) {  // last warp
       //__syncwarp();  // optional
 
       const int cidm1 = chunkID - 1;
@@ -242,7 +240,7 @@ static inline __device__ int propagate_carry(const int value, const int chunkID,
       } while ((__any_sync(~0, stat == 0)) || (__all_sync(~0, stat != 2)));
       __threadfence();
 
-#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)
+#if defined(WS) && (WS == 64)
       const long long mask = __ballot_sync(~0, stat == 2);
       const int pos = __ffsll(mask) - 1;
 #else
@@ -251,7 +249,7 @@ static inline __device__ int propagate_carry(const int value, const int chunkID,
 #endif
 
       int partc = (lane < pos) ? partcarry[chunkID - pos + lane] : 0;
-      for (int dist = 1; dist < warpSize; dist *= 2) {
+      for (int dist = 1; dist < WS; dist *= 2) {
         partc += __shfl_xor_sync(~0, partc, dist);
       }
       if (lastthread) {
@@ -372,7 +370,7 @@ void d_encode(const unsigned long long chain, const byte* const __restrict__ inp
 {
   // allocate shared memory buffer
   __shared__ long long chunk [3 * (CS / sizeof(long long))];
-  const int last = 3 * (CS / sizeof(long long)) - 2 - warpSize;
+  const int last = 3 * (CS / sizeof(long long)) - 2 - WS;
 
   // initialize
   const int chunks = (insize + CS - 1) / CS;  // round up
@@ -461,7 +459,7 @@ void d_decode(const unsigned long long chain, const byte* const __restrict__ inp
 {
   // allocate shared memory buffer
   __shared__ long long chunk [3 * (CS / sizeof(long long))];
-  const int last = 3 * (CS / sizeof(long long)) - 2 - warpSize;
+  const int last = 3 * (CS / sizeof(long long)) - 2 - WS;
 
   // input header
   int* const head_in = (int*)input;
@@ -1211,8 +1209,12 @@ static void printUsage(char* argv [])
   printComponents();
   printf("\nExamples:\n");
   printf("1. Lossless 2-stage pipeline with CLOG in 2nd stage using 4-byte granularity, showing only compression ratio (CR):\n\n   ./lc input_file_name CR \"\" \".+ CLOG_4\"\n\n");
-  printf("2. Lossy 3-stage pipeline with 3D Lorenzo preprocessor and a DIFF, open, and R2E stage using 8-byte granularity, showing compression ratio, compression and decompression throughput, and Pareto frontier (EX):\n\n   ./lc input_file_name EX \"LOR3D_i32(dim1, dim2, dim3)\" \"DIFF_8 .+ R2E_8\"\n");
-  printf("\nNotes:\n1. The double quotations are always needed, even if there is nothing between them.\n2. The Lorenzo preprocessors only work when the passed dimensions match the input file size.\n");
+  printf("2. Lossless 3-stage pipeline with 3D Lorenzo preprocessor and a DIFF, open, and R2E stage using 8-byte granularity, showing compression ratio, compression and decompression throughput, and Pareto frontier (EX):\n\n   ./lc input_file_name EX \"LOR3D_i32(dim1, dim2, dim3)\" \"DIFF_8 .+ R2E_8\"\n\n");
+  printf("3. Lossy 2-stage pipeline with quantization with a 0.001 error bound and a limit value of 1000 and a CLOG component using 4-byte granularity, showing only compression ratio:\n\n  ./lc input_file_name CR \"QUANT_ABS_R_f32(0.001, 1000)\" \"CLOG_4\"\n\n");
+  printf("Notes:\n1. The double quotations are always needed, even if there is nothing between them.\n2. The Lorenzo preprocessors only work when the passed dimensions match the input file size.\n");
+  printf("3. The quantization preprocessors always need an error bound parameter specified in parentheses.\n");
+  printf("4. The quantization preprocessors optionally take a second value, which indicates the absolute value beyond which the values are compressed losslessly.\n");
+  printf("5. See the ./verifiers directory for a list of available verifiers. Verifiers take an error bound as parameter.\n\n");
 }
 
 
@@ -1586,7 +1588,7 @@ int main(int argc, char* argv [])
 
     printStages(prepros, prepro_name2num, comp_list, comp_name2num, stages, algorithms, fres);
     printComponents(fres);
-    fprintf(fres, "\n");//MB
+    fprintf(fres, "\n");
 
     if (prepros.size() > 0) {
 #ifdef USE_CPU
