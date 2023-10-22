@@ -64,7 +64,7 @@ for f in pfiles:
 cpupres.sort()
 
 if len(sys.argv) != 3:
-    print("Usage: {} \"preprocessor_name\" \"component_name\" [\"component_name\" ...]".format(sys.argv[0]))
+    print("Usage: {} \"[preprocessor_name ...]\" \"component_name [component_name ...]\"".format(sys.argv[0]))
     print("\nAvailable components are:")
     for c in cpucomps:
         print(c[2:], end = ' ')
@@ -175,7 +175,7 @@ with open("decompressor-standalone.cu", "r+") as f:
 with open("compressor-standalone.cu", "r+") as f:
   contents = f.read()
   m = re.search("##print-beg##[\s\S]*##print-end##", contents)
-  str_to_add = '  printf(\"GPU LC Algorithm:'
+  str_to_add = '  printf(\"GPU LC 1.1 Algorithm:'
   for c in pre_uni:
       str_to_add += " " + str(c[2:])
   for c in comp_uni:
@@ -190,7 +190,7 @@ with open("compressor-standalone.cu", "r+") as f:
 with open("decompressor-standalone.cu", "r+") as f:
   contents = f.read()
   m = re.search("##print-beg##[\s\S]*##print-end##", contents)
-  str_to_add = '  printf(\"GPU LC Algorithm:'
+  str_to_add = '  printf(\"GPU LC 1.1 Algorithm:'
   for c in pre_uni:
       str_to_add += " " + str(c[2:])
   for c in comp_uni:

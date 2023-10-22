@@ -1207,6 +1207,8 @@ static void printUsage(char* argv [])
   printPreprocessors();
   printf("\n");
   printComponents();
+  printf("\nFor usage examples, please see the quick-start guide and tutorial at https://github.com/burtscher/LC-framework/.\n");
+/*
   printf("\nExamples:\n");
   printf("1. Lossless 2-stage pipeline with CLOG in 2nd stage using 4-byte granularity, showing only compression ratio (CR):\n\n   ./lc input_file_name CR \"\" \".+ CLOG_4\"\n\n");
   printf("2. Lossless 3-stage pipeline with 3D Lorenzo preprocessor and a DIFF, open, and R2E stage using 8-byte granularity, showing compression ratio, compression and decompression throughput, and Pareto frontier (EX):\n\n   ./lc input_file_name EX \"LOR3D_i32(dim1, dim2, dim3)\" \"DIFF_8 .+ R2E_8\"\n\n");
@@ -1215,6 +1217,7 @@ static void printUsage(char* argv [])
   printf("3. The quantization preprocessors always need an error bound parameter specified in parentheses.\n");
   printf("4. The quantization preprocessors optionally take a second value, which indicates the absolute value beyond which the values are compressed losslessly.\n");
   printf("5. See the ./verifiers directory for a list of available verifiers. Verifiers take an error bound as parameter.\n\n");
+*/
 }
 
 
@@ -1231,7 +1234,7 @@ struct Config {
 
 int main(int argc, char* argv [])
 {
-  printf("LC Compression Framework v1.0 (%s)\n", __FILE__);
+  printf("LC Compression Framework v1.1 (%s)\n", __FILE__);
 
 #ifndef USE_GPU
   #ifndef USE_CPU
@@ -1571,7 +1574,7 @@ int main(int argc, char* argv [])
     if (sep != std::string::npos) fname = fname.substr(sep + 1, fname.size() - sep - 1);
     fname += ext + ".csv";
     fres = fopen(fname.c_str(), "wt"); assert(fres != NULL);
-    fprintf(fres, "LC Lossless Compression Framework v1.0\n");
+    fprintf(fres, "LC Lossless Compression Framework v1.1\n");
     fprintf(fres, "input, %s\n", argv[1]);
     fprintf(fres, "size [bytes], %d\n", insize);
     time_t curtime;

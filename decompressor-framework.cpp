@@ -42,7 +42,11 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 using byte = unsigned char;
 static const int CS = 1024 * 16;  // chunk size (in bytes) [must be multiple of 8]
 static const int TPB = 512;  // threads per block [must be power of 2 and at least 128]
-static const int WS = 32;  // warp size [must match number of bits in an int]
+#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)
+#define WS 64
+#else
+#define WS 32
+#endif
 
 #include <limits>
 #include <cmath>
