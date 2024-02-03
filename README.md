@@ -41,6 +41,8 @@ For the GPU, use:
 
 You may have to adjust these commands and flags to your system and compiler. For instance, the *sm_70* should be changed to match your GPU's compute capability.
 
+The generate_Hybrid_LC-Framework.py script is only for testing and should not be used as it generates slow code.
+
 
 ### Usage Examples for Lossless Compression Algorithms
 
@@ -82,7 +84,7 @@ Note that the search time increases exponentially with the number of stages. Bef
 
 The output lists the number of algorithms that will be tested as well as which components will be considered in each pipeline stage. If this number is too large, i.e., the search would take too long, try reducing the search space by limiting the number of components to be considered:
 
-    ./lc input.dat CR "" "DIFF_4 .+ .+ R.+|Z.+|C.+|H.+"
+    ./lc input.dat CR "" "DIFF_4 .+ .+ R.+|C.+|H.+"
 
 If available, we recommend using the GPU version of LC as it tends to be much faster than the CPU version. To further speed up the search, LC includes a genetic algorithm (GA) to quickly search for a good but not necessarily the best algorithm. If you want to run the GA to find a good pipeline with 5 stages, enter the following command:
 
@@ -117,25 +119,25 @@ To generate lossy algorithms with LC, preprocessors are needed. They must be ful
 
 To find a good lossy compression algorithm for IEEE-754 32-bit single-precision floating-point data that are quantized with a maximum point-wise absolute error bound of 0.01 and then losslessly compressed with three components, enter:
 
-    ./lc input.dat CR "QUANT_ABS_0_f32(0.01)" ".+ .+ R.+|Z.+|C.+|H.+"
+    ./lc input.dat CR "QUANT_ABS_0_f32(0.01)" ".+ .+ R.+|C.+|H.+"
 
 To do the same with a point-wise relative error bound, use:
 
-    ./lc input.dat CR "QUANT_REL_0_f32(0.01)" ".+ .+ R.+|Z.+|C.+|H.+"
+    ./lc input.dat CR "QUANT_REL_0_f32(0.01)" ".+ .+ R.+|C.+|H.+"
 
 The preprocessors work with the *CR*, *EX*, and *AL* modes. However, since both *EX* and *AL* verify the result, the default lossless verification will likely fail for lossy compression. LC includes a set of verifiers that can be selected in lieu of the default verifier. For an point-wise absolute error bound of 0.001, use:
 
-    ./lc input.dat EX "QUANT_ABS_0_f32(0.001)" ".+ R.+|Z.+|C.+|H.+" "MAXABS_f32(0.001)"
+    ./lc input.dat EX "QUANT_ABS_0_f32(0.001)" ".+ R.+|C.+|H.+" "MAXABS_f32(0.001)"
 
 See the ./verifiers/ directory for additional available verifiers or the description below.
 
 These quantizers replace any lost bits with zeros. If you prefer those bits be replaced by random data to minimize autocorrelation, use:
 
-    ./lc input.dat CR "QUANT_ABS_R_f32(0.01)" ".+ .+ R.+|Z.+|C.+|H.+"
+    ./lc input.dat CR "QUANT_ABS_R_f32(0.01)" ".+ .+ R.+|C.+|H.+"
 
 or
 
-    ./lc input.dat CR "QUANT_REL_R_f32(0.01)" ".+ .+ R.+|Z.+|C.+|H.+"
+    ./lc input.dat CR "QUANT_REL_R_f32(0.01)" ".+ .+ R.+|C.+|H.+"
 
 
 
