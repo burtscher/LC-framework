@@ -1,6 +1,13 @@
+NonGitFiles/
 lc
 lc.cpp
 lc.cu
 LC.encoded
 LC.decoded
+compress
+compressor-standalone.cpp
+compressor-standalone.cu
+decompress
+decompressor-standalone.cpp
+decompressor-standalone.cu
 *.csv
