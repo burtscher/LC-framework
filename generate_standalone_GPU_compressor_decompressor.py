@@ -151,8 +151,8 @@ with open("compressor-standalone.cu", "r+") as f:
   for c in pre_uni:
     str_to_add += "#include \"preprocessors/" + str(c) + ".h\"\n"
   for c in comp_uni:
-    str_to_add += "#include \"components/" + str(c) + ".h\"\n"  
-  
+    str_to_add += "#include \"components/" + str(c) + ".h\"\n"
+
   contents = contents[:m.span()[0]] + "##include-beg##*/\n" + str_to_add + "/*##include-end##" + contents[m.span()[1]:]
   f.seek(0)
   f.truncate()
@@ -163,7 +163,7 @@ with open("decompressor-standalone.cu", "r+") as f:
   m = re.search("##include-beg##[\s\S]*##include-end##", contents)
   str_to_add = ''
   for c in pre_uni:
-    str_to_add += "#include \"preprocessors/" + str(c) + ".h\"\n"  
+    str_to_add += "#include \"preprocessors/" + str(c) + ".h\"\n"
   for c in comp_uni:
     str_to_add += "#include \"components/" + str(c) + ".h\"\n"
   contents = contents[:m.span()[0]] + "##include-beg##*/\n" + str_to_add + "/*##include-end##" + contents[m.span()[1]:]
@@ -295,10 +295,8 @@ cpp_code = [line for line in cpp_code if not re.match(pattern, line.strip())]
 with open(dec_file_path, "w") as file:
     file.write("".join(cpp_code))
 
-
-print("Compile encoder with\nnvcc -O3 -arch=sm_70 -DUSE_GPU -Xcompiler \"-march=native -fopenmp\" -o compress compressor-standalone.cu\n")
+print("Compile encoder with\nnvcc -O3 -arch=sm_70 -DUSE_GPU -Xcompiler \"-march=native -fopenmp\" -I. -o compress compressor-standalone.cu\n")
 print("Run encoder with:\n./compress input_file_name compressed_file_name [y]\n")
-
-print("Compile decoder with\nnvcc -O3 -arch=sm_70 -DUSE_GPU -Xcompiler \"-march=native -fopenmp\" -o decompress decompressor-standalone.cu\n")
+print("Compile decoder with\nnvcc -O3 -arch=sm_70 -DUSE_GPU -Xcompiler \"-march=native -fopenmp\" -I. -o decompress decompressor-standalone.cu\n")
 print("Run decoder with:\n./decompress compressed_file_name decompressed_file_name [y]\n")
 

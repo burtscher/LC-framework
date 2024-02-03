@@ -140,8 +140,8 @@ with open("compressor-standalone.cpp", "r+") as f:
   for c in pre_uni:
     str_to_add += "#include \"preprocessors/" + str(c) + ".h\"\n"
   for c in comp_uni:
-    str_to_add += "#include \"components/" + str(c) + ".h\"\n"  
-  
+    str_to_add += "#include \"components/" + str(c) + ".h\"\n"
+
   contents = contents[:m.span()[0]] + "##include-beg##*/\n" + str_to_add + "/*##include-end##" + contents[m.span()[1]:]
   f.seek(0)
   f.truncate()
@@ -152,7 +152,7 @@ with open("decompressor-standalone.cpp", "r+") as f:
   m = re.search("##include-beg##[\s\S]*##include-end##", contents)
   str_to_add = ''
   for c in pre_uni:
-    str_to_add += "#include \"preprocessors/" + str(c) + ".h\"\n"  
+    str_to_add += "#include \"preprocessors/" + str(c) + ".h\"\n"
   for c in comp_uni:
     str_to_add += "#include \"components/" + str(c) + ".h\"\n"
   contents = contents[:m.span()[0]] + "##include-beg##*/\n" + str_to_add + "/*##include-end##" + contents[m.span()[1]:]
@@ -265,7 +265,7 @@ with open("decompressor-standalone.cpp", "r+") as f:
   f.seek(0)
   f.truncate()
   f.write(contents)
-   
+
 # Get rid of tags
 enc_file_path = "compressor-standalone.cpp"
 with open(enc_file_path, "r") as file:
@@ -283,7 +283,7 @@ cpp_code = [line for line in cpp_code if not re.match(pattern, line.strip())]
 with open(dec_file_path, "w") as file:
     file.write("".join(cpp_code))
 
-print("Compile encoder with:\ng++ -O3 -march=native -fopenmp -o compress compressor-standalone.cpp")
+print("Compile encoder with:\ng++ -O3 -march=native -fopenmp -I. -std=c++17 -o compress compressor-standalone.cpp")
 print("\nRun encoder with:\n./compress input_file_name compressed_file_name [y]")
-print("\nCompile decoder with:\ng++ -O3 -march=native -fopenmp -o decompress decompressor-standalone.cpp")
+print("\nCompile decoder with:\ng++ -O3 -march=native -fopenmp -I. -std=c++17 -o decompress decompressor-standalone.cpp")
 print("\nRun decoder with:\n./decompress compressed_file_name decompressed_file_name [y]\n")
