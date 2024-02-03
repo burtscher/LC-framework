@@ -5,7 +5,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2023, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -41,11 +41,22 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 import re
 import glob, os
 from pathlib import Path
+from os.path import exists
+from sys import stderr
 import math
 import shutil
+import argparse
+
+parser = argparse.ArgumentParser("lc")
+parser.add_argument("--output_dir", default=".")
+parser.add_argument("--verbose", action="store_true")
+parser.add_argument("--base_file", default="framework.cu")
+args = parser.parse_args()
 
 # generate lc framework
-shutil.copyfile('framework.cu', 'lc.cu')
+shutil.copyfile(args.base_file, args.output_dir + "/lc.cu")
+for i in ["/components/include", "/preprocessors/include", "/verifiers/include"]:
+    os.makedirs(args.output_dir + i, exist_ok=True)
 
 # necessary functions
 def update_enum(filename, comps, item):
@@ -61,21 +72,30 @@ def update_enum(filename, comps, item):
       f.write(", " + str(c))
     f.write("};\n\n")
 
-def update_cpu_components(filename, comps):
+def update_cpu_components(filename, comps, component_type):
   with open(filename, 'a') as f:
     for c in comps:
       if c.startswith("v_"):
         c = c[2:]
-      f.write("#include \"../" + str(c) + ".h\"\n")
-   # f.write("\n#endif\n")
+      f.write("#include \"" + component_type + "/" + str(c) + ".h\"\n")
+    #f.write("\n#endif\n")
 
-def update_gpu_components(filename, comps):
+def update_gpu_components(filename, comps, component_type):
   with open(filename, 'a') as f:
     for c in comps:
       if c.startswith("v_"):
         c = c[2:]
-      f.write("#include \"../" + str(c) + ".h\"\n")
+      f.write("#include \"" + component_type + "/" + str(c) + ".h\"\n")
     f.write("\n#endif\n")
+
+#find components CPU
+cfiles = next(os.walk('./components'))[2]
+cpucomps = []
+for f in cfiles:
+  if f.startswith("h_"):
+    cpucomps.append(f[:-2])
+if args.verbose:
+    print("cpucomps \n", ', '.join(cpucomps), file=stderr)
 
 # find components GPU
 gfiles = next(os.walk('./components'))[2]
@@ -83,13 +103,8 @@ gpucomps = []
 for f in gfiles:
   if f.startswith("d_"):
     gpucomps.append(f[:-2])
-
-# find components CPU
-cfiles = next(os.walk('./components'))[2]
-cpucomps = []
-for f in cfiles:
-  if f.startswith("h_"):
-    cpucomps.append(f[:-2])
+if args.verbose:
+    print("\ngpucomps \n", ', '.join(gpucomps), file=stderr)
 
 # sort components
 cpucomps.sort()
@@ -104,18 +119,18 @@ for g in gpucomps:
   gname.append(g[2:])
 
 if set(cname) == set(gname):
-    print("Components match.\n")
+    print("\nComponents match.\n")
 else:
     diff = [x for x in cpucomps if x[2:] not in [y[2:] for y in gpucomps]] + [y for y in gpucomps if y[2:] not in [x[2:] for x in cpucomps]]
     result = ', '.join(diff)
-    print("Warning: skipping unmatched components:", result, "\n")
+    print("\nWarning: skipping unmatched components:", result, "\n")
 
 #remove unmatched component
 cpucomps = [c for c in cpucomps if c[2:] in gname]
 gpucomps = [c for c in gpucomps if c[2:] in cname]
 
 # update constants
-with open('./include/consts.h', 'w') as f:
+with open(args.output_dir + '/include/consts.h', 'w') as f:
   f.write("static const int CS = 1024 * 16;  // chunk size (in bytes) [do not change]\n")
   f.write("static const int TPB = 512;  // threads per block [must be power of 2 and at least 128]\n")
   f.write("#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)\n")
@@ -125,13 +140,13 @@ with open('./include/consts.h', 'w') as f:
   f.write("#endif\n")
 
 # update enum.h
-update_enum('./components/include/components.h', cpucomps, 'components')
+update_enum(args.output_dir + '/components/include/components.h', cpucomps, 'components')
 
 # update CPUcomponents.h
-update_cpu_components('./components/include/components.h', cpucomps)
+update_cpu_components(args.output_dir + '/components/include/components.h', cpucomps, "components")
 
 # update GPUcomponents.h
-update_gpu_components('./components/include/components.h', gpucomps)
+update_gpu_components(args.output_dir + '/components/include/components.h', gpucomps, "components")
 
 # find preprocessors GPU
 gfiles = next(os.walk('./preprocessors'))[2]
@@ -139,6 +154,8 @@ gpupreprocess = []
 for f in gfiles:
   if f.startswith("d_"):
     gpupreprocess.append(f[:-2])
+if args.verbose:
+    print("\ngpupreprocess \n",', '.join(gpupreprocess), file=stderr)
 
 # find preprocessors CPU
 cfiles = next(os.walk('./preprocessors'))[2]
@@ -146,6 +163,8 @@ cpupreprocess = []
 for f in cfiles:
   if f.startswith("h_"):
     cpupreprocess.append(f[:-2])
+if args.verbose:
+    print("\ncpupreprocess \n",', '.join(cpupreprocess), file=stderr)
 
 #sort preprocessors
 cpupreprocess.sort()
@@ -160,40 +179,42 @@ for g in gpupreprocess:
   gprepro.append(g[2:])
 
 if set(cprepro) == set(gprepro):
-    print("preprocessors match.\n")
+    print("\npreprocessors match.\n")
 else:
     diff = [x for x in cpupreprocess if x[2:] not in [y[2:] for y in gpupreprocess]] + [y for y in gpupreprocess if y[2:] not in [x[2:] for x in cpupreprocess]]
     result = ', '.join(diff)
-    print("Warning: skipping unmatched preprocessors:", result, "\n")
+    print("\nWarning: skipping unmatched preprocessors:", result, "\n")
 
 #remove unmatched preprocessor
 cpupreprocess = [c for c in cpupreprocess if c[2:] in gprepro]
 gpupreprocess = [c for c in gpupreprocess if c[2:] in cprepro]
 
 #update preprocessor enum.h
-update_enum('./preprocessors/include/preprocessors.h', cpupreprocess, 'preprocessors')
+update_enum(args.output_dir + '/preprocessors/include/preprocessors.h', cpupreprocess, 'preprocessor')
 
 # update CPUpreprocessors.h
-update_cpu_components('./preprocessors/include/preprocessors.h', cpupreprocess)
+update_cpu_components(args.output_dir + '/preprocessors/include/preprocessors.h', cpupreprocess, "preprocessors")
 
 # update GPUpreprocessors.h
-update_gpu_components('./preprocessors/include/preprocessors.h', gpupreprocess)
+update_gpu_components(args.output_dir + '/preprocessors/include/preprocessors.h', gpupreprocess, "preprocessors")
 
-# find verifiers
+
+# find verifiers 
 cfiles = next(os.walk('./verifiers'))[2]
-cpuverifier = []
+gpuverifier = []
 for f in cfiles:
   if f.endswith(".h"):
-    cpuverifier.append("v_" + f[:-2])
+    gpuverifier.append("v_" + f[:-2])
+if args.verbose:
+    print("\nverifier \n", ', '.join(gpuverifier), file=stderr)
 
 # update enum.h
-update_enum('./verifiers/include/verifiers.h', cpuverifier, 'VERIFIER')
+update_enum(args.output_dir + '/verifiers/include/verifiers.h', gpuverifier, 'VERIFIER')
 
 # update verifiers.h
-update_gpu_components('./verifiers/include/verifiers.h', cpuverifier)
+update_gpu_components(args.output_dir + '/verifiers/include/verifiers.h', gpuverifier, "verifiers")
 
-
-file = './lc.cu'
+file = args.output_dir + "/lc.cu"
 # update switch host encode
 with open(file, "r+") as f:
   contents = f.read()
@@ -264,7 +285,7 @@ with open(file, "r+") as f:
   contents = f.read()
   m = re.search("##switch-verify-beg##[\s\S]*##switch-verify-end##", contents)
   str_to_add = ''
-  for c in cpuverifier:
+  for c in gpuverifier:
     c = c[2:]
     str_to_add += "      case v_" + str(c) + ": " + str(c) + "(size, recon, orig, params.size(), params.data()); break;\n"
   contents = contents[:m.span()[0]] + "##switch-verify-beg##*/\n" + str_to_add + "      /*##switch-verify-end##" + contents[m.span()[1]:]
@@ -358,7 +379,7 @@ with open(file, "r+") as f:
     contents = f.read()
     m = re.search("##verifier-map-beg##[\s\S]*##verifier-map-end##", contents)
     str_to_add = ''
-    for c in cpuverifier:
+    for c in gpuverifier:
         c = c[2:]
         str_to_add += "  verifs[\"" + str(c) + "\"] = v_" + str(c) + ";\n"
     contents = contents[:m.span()[0]] + "##verifier-map-beg##*/\n" + str_to_add + "  /*##verifier-map-end##" + contents[m.span()[1]:]
@@ -367,5 +388,5 @@ with open(file, "r+") as f:
     f.write(contents)
 
 # messages
-print("Compile with\nnvcc -O3 -arch=sm_70 -DUSE_GPU -DUSE_CPU -Xcompiler \"-O3 -march=native -fopenmp\" -o lc lc.cu\n")
+print("\nCompile with\nnvcc -O3 -arch=sm_70 -DUSE_GPU -DUSE_CPU -Xcompiler \"-O3 -march=native -fopenmp\" -I. -o lc lc.cu\n")
 print("Run the following command to see the usage message\n./lc")

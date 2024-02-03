@@ -5,7 +5,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2023, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -42,11 +42,21 @@ import re
 import glob, os
 from pathlib import Path
 from os.path import exists
+from sys import stderr
 import math
 import shutil
+import argparse
+
+parser = argparse.ArgumentParser("lc")
+parser.add_argument("--output_dir", default=".")
+parser.add_argument("--verbose", action="store_true")
+parser.add_argument("--base_file", default="framework.cu")
+args = parser.parse_args()
 
 # generate lc framework
-shutil.copyfile('framework.cu', 'lc.cpp')
+shutil.copyfile(args.base_file, args.output_dir + "/lc.cpp")
+for i in ["/components/include", "/preprocessors/include", "/verifiers/include"]:
+    os.makedirs(args.output_dir + i, exist_ok=True)
 
 # necessary functions
 def update_enum(filename, comps, item):
@@ -63,12 +73,12 @@ def update_enum(filename, comps, item):
 
     f.write("};\n\n")
 
-def update_cpu_components(filename, comps):
+def update_cpu_components(filename, comps, component_type):
   with open(filename, 'a') as f:
     for c in comps:
       if c.startswith("v_"):
         c = c[2:]
-      f.write("#include \"../" + str(c) + ".h\"\n")
+      f.write("#include \"" + component_type + "/" + str(c) + ".h\"\n")
     f.write("\n#endif\n")
 
 def update_gpu_components(filename, comps):
@@ -83,25 +93,21 @@ cpucomps = []
 for f in cfiles:
   if f.startswith("h_"):
     cpucomps.append(f[:-2])
+if args.verbose:
+    print("cpucomps \n", ', '.join(cpucomps), file=stderr)
 
 # sort components
 cpucomps.sort()
 
 # update constants
-with open('./include/consts.h', 'w') as f:
+with open(args.output_dir + '/include/consts.h', 'w') as f:
   f.write("static const int CS = 1024 * 16;  // chunk size (in bytes) [do not change]\n")
-#  f.write("static const int TPB = 512;  // threads per block [must be power of 2 and at least 128]\n")
-#  f.write("#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)\n")
-#  f.write("#define WS 64\n")
-#  f.write("#else\n")
-#  f.write("#define WS 32\n")
-#  f.write("#endif\n")
 
 # update enum.h
-update_enum('./components/include/CPUcomponents.h', cpucomps, 'CPUcomponents')
+update_enum(args.output_dir + '/components/include/CPUcomponents.h', cpucomps, 'CPUcomponents')
 
 # update CPUcomponents.h
-update_cpu_components('./components/include/CPUcomponents.h', cpucomps)
+update_cpu_components(args.output_dir + '/components/include/CPUcomponents.h', cpucomps, "components")
 
 # find preprocessors CPU
 cfiles = next(os.walk('./preprocessors'))[2]
@@ -109,12 +115,14 @@ cpupreprocess = []
 for f in cfiles:
   if f.startswith("h_"):
     cpupreprocess.append(f[:-2])
+if args.verbose:
+    print("\ncpupreprocess \n",', '.join(cpupreprocess), file=stderr)
 
 #update preprocessor enum.h
-update_enum('./preprocessors/include/CPUpreprocessors.h', cpupreprocess, 'CPUpreprocessor')
+update_enum(args.output_dir + '/preprocessors/include/CPUpreprocessors.h', cpupreprocess, 'CPUpreprocessor')
 
 # update CPUpreprocessors.h
-update_cpu_components('./preprocessors/include/CPUpreprocessors.h', cpupreprocess)
+update_cpu_components(args.output_dir + '/preprocessors/include/CPUpreprocessors.h', cpupreprocess, "preprocessors")
 
 # find verifiers
 cfiles = next(os.walk('./verifiers'))[2]
@@ -122,14 +130,16 @@ cpuverifier = []
 for f in cfiles:
   if f.endswith(".h"):
     cpuverifier.append("v_" + f[:-2])
+if args.verbose:
+    print("\nverifier \n", ', '.join(cpuverifier), file=stderr)
 
 # update enum.h
-update_enum('./verifiers/include/verifiers.h', cpuverifier, 'VERIFIER')
+update_enum(args.output_dir + '/verifiers/include/verifiers.h', cpuverifier, 'VERIFIER')
 
 # update verifiers.h
-update_cpu_components('./verifiers/include/verifiers.h', cpuverifier)
+update_cpu_components(args.output_dir + '/verifiers/include/verifiers.h', cpuverifier, "verifiers")
 
-file = './lc.cpp'
+file = args.output_dir + "/lc.cpp"
 # update switch host encode
 with open(file, "r+") as f:
   contents = f.read()
@@ -250,5 +260,6 @@ with open(file, "r+") as f:
     f.truncate()
     f.write(contents)
 
-print("Compile with\ng++ -O3 -march=native -fopenmp -DUSE_CPU -o lc lc.cpp\n")
+print("\nCompile with\ng++ -O3 -march=native -fopenmp -DUSE_CPU -I. -std=c++17 -o lc lc.cpp\n")
 print("Run the following command to see the usage message\n./lc")
+

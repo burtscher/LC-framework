@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2023, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -62,7 +62,7 @@ static __device__ inline bool d_REencodebyteshort(const T* const in, const int i
   const int tid = threadIdx.x;
   int bmp = 0, cnt = 0;
   if (tid * bytesperthread < csize) {
-    type prev = (tid == 0) ? ~in[0] : in[tid * (bytesperthread / sizeof(type)) - 1];
+    type prev = (tid == 0) ? 0 : in[tid * (bytesperthread / sizeof(type)) - 1];
     for (int i = 0; i < bytesperthread / sizeof(ull); i++) {
       const ull lval = in_l[tid * (bytesperthread / sizeof(ull)) + i];
       const ull pval = (bitsperword < bitsperlong) ? ((lval << bitsperword) | prev) : prev;
@@ -128,7 +128,7 @@ static __device__ inline bool d_REencode1wordperthread(const T* const in, const 
 
   // count non-repeating values and output bitmaps
   const bool active = (tid < insize);
-  const T prev = !active ? 0 : ((tid == 0) ? ~in[0] : in[tid - 1]);
+  const T prev = !active ? 0 : ((tid == 0) ? 0 : in[tid - 1]);
   const T val = active ? in[tid] : 0;
   const bool havenonrepval = (active && (val != prev));
 #if defined(WS) && (WS == 64)
@@ -199,7 +199,7 @@ static __device__ inline bool d_REencode2wordsperthread(const T* const in, const
   const int tid2 = tid1 + 1;
   const bool active1 = (tid1 < insize);
   const bool active2 = (tid2 < insize);
-  const T prev = (!active1) ? 0 : ((tid1 == 0) ? ~in[0] : in[tid1 - 1]);
+  const T prev = (!active1) ? 0 : ((tid1 == 0) ? 0 : in[tid1 - 1]);
   const T val1 = active1 ? in[tid1] : 0;
   const T val2 = active2 ? in[tid2] : 0;
   const bool havenonrepval1 = (active1 && (val1 != prev));
@@ -297,7 +297,7 @@ static __device__ inline bool d_REencode4wordsperthread(const T* const in, const
   const bool active2 = (tid2 < insize);
   const bool active3 = (tid3 < insize);
   const bool active4 = (tid4 < insize);
-  const T prev = !active1 ? 0 : ((tid1 == 0) ? ~in[0] : in[tid1 - 1]);
+  const T prev = !active1 ? 0 : ((tid1 == 0) ? 0 : in[tid1 - 1]);
   const T val1 = active1 ? in[tid1] : 0;
   const T val2 = active2 ? in[tid2] : 0;
   const T val3 = active3 ? in[tid3] : 0;
@@ -420,7 +420,7 @@ static __device__ inline bool d_REencodeXwordsperthread(const T* const in, const
   const int tid = threadIdx.x;
   int bmp = 0, cnt = 0;
   if (tid * WPT < insize) {
-    T prev = (tid == 0) ? ~in[0] : in[tid * WPT - 1];
+    T prev = (tid == 0) ? 0 : in[tid * WPT - 1];
     for (int i = 0; i < WPT; i++) {
       const T val = in[tid * WPT + i];
       bmp |= (val != prev) << i;
@@ -497,11 +497,10 @@ static __device__ inline bool d_REencode(const T* const in, const int insize, T*
     return d_REencodeXwordsperthread<16, T, check>(in, insize, dataout, datasize, bmout, temp_w);
   } else if constexpr (wordsperthread == 32) {
     // thread-based 32 words per thread
-//if ((blockIdx.x == 0) && (threadIdx.x == 0)) printf("  hello32: maxsize = %d, typesize = %lld, check = %d, wordsperthread = %d\n", maxsize, sizeof(T), check, wordsperthread);
     return d_REencodeXwordsperthread<32, T, check>(in, insize, dataout, datasize, bmout, temp_w);
   } else {
     // unsupported
-    asm volatile("s_trap 1");
+    __trap();
     return false;
   }
 }
@@ -563,7 +562,7 @@ static __device__ inline void d_REdecode_specialized(const int decsize, const T*
     }
 
     const int offs = __popc(bm & ((1 << sublane) - 1)) - (((bm >> sublane) & 1) ^ 1);
-    const T val = datain[pos + offs];
+    const T val = (pos + offs < 0) ? 0 : datain[pos + offs];
     const int loc = i * subWS + sublane;
     if (loc < decsize) out[loc] = val;
     pos += __popc(bm);
@@ -612,7 +611,7 @@ static __device__ inline void d_REdecode1wordperthread(const int decsize, const 
   // output values
   if (active) {
     const int loc = temp_w[subwarp] - cnt + __popc(bm & ((1 << sublane) - 1)) - (havenonrepval ^ 1);
-    out[tid] = datain[loc];
+    out[tid] = (loc < 0) ? 0 : datain[loc];
   }
 }
 
@@ -667,8 +666,8 @@ static __device__ inline void d_REdecode2wordsperthread(const int decsize, const
   const int common = temp_w[subwarp] - cnt + __popc(bm1 & ((1 << sublane) - 1)) + __popc(bm2 & ((1 << sublane) - 1));
   const int loc1 = common - (havenonrepval1 ^ 1);
   const int loc2 = common + havenonrepval1 - (havenonrepval2 ^ 1);
-  if (active1) out[tid1] = datain[loc1];
-  if (active2) out[tid2] = datain[loc2];
+  if (active1) out[tid1] = (loc1 < 0) ? 0 : datain[loc1];
+  if (active2) out[tid2] = (loc2 < 0) ? 0 : datain[loc2];
 }
 
 
@@ -736,10 +735,10 @@ static __device__ inline void d_REdecode4wordsperthread(const int decsize, const
   const int loc2 = common + havenonrepval1 - (havenonrepval2 ^ 1);
   const int loc3 = common + havenonrepval1 + havenonrepval2 - (havenonrepval3 ^ 1);
   const int loc4 = common + havenonrepval1 + havenonrepval2 + havenonrepval3 - (havenonrepval4 ^ 1);
-  if (active1) out[tid1] = datain[loc1];
-  if (active2) out[tid2] = datain[loc2];
-  if (active3) out[tid3] = datain[loc3];
-  if (active4) out[tid4] = datain[loc4];
+  if (active1) out[tid1] = (loc1 < 0) ? 0 : datain[loc1];
+  if (active2) out[tid2] = (loc2 < 0) ? 0 : datain[loc2];
+  if (active3) out[tid3] = (loc3 < 0) ? 0 : datain[loc3];
+  if (active4) out[tid4] = (loc4 < 0) ? 0 : datain[loc4];
 }
 
 
@@ -765,7 +764,7 @@ static __device__ inline void d_REdecodeXwordsperthread(const int decsize, const
 
   // output values
   if (tid * WPT < decsize) {
-    T val = (bmp & 1) ? 0 : datain[pos - 1];
+    T val = (bmp & 1) ? 0 : ((pos > 0) ? datain[pos - 1] : 0);
     if ((tid | 31) * WPT + (WPT - 1) < decsize) {
       for (int i = 0; i < WPT; i++) {
         if ((bmp >> i) & 1) val = datain[pos++];
@@ -807,12 +806,10 @@ static __device__ inline void d_REdecode_small(const int decsize, const T* const
     d_REdecodeXwordsperthread<16, T>(decsize, datain, bmin, out, temp_w);
   } else if constexpr (wordsperthread == 32) {
     // thread-based 32 words per thread
-//if ((blockIdx.x == 0) && (threadIdx.x == 0)) printf("  bye32: maxsize = %d, typesize = %lld, wordsperthread = %d\n", maxsize, sizeof(T), wordsperthread);
-    //d_REdecode_<T>(decsize, datain, bmin, out, temp_w);
     d_REdecodeXwordsperthread<32, T>(decsize, datain, bmin, out, temp_w);
   } else {
     // unsupported
-    asm volatile("s_trap 1");
+    __trap();
   }
 }
 
@@ -822,7 +819,7 @@ static __device__ inline void d_REdecode(const int decsize, const T* const datai
 {
   if constexpr (maxsize <= 2048) {
     d_REdecode_small<T, maxsize>(decsize, datain, bmin, out, temp_w);
-  } else if ((sizeof(T) >= 4) || (((size_t)bmin & 3) == 0)) {  // at least int aligned
+  } else if ((sizeof(T) >= 4) /*|| (((size_t)bmin & 3) == 0)*/) {  // at least int aligned
     d_REdecode_specialized(decsize, datain, (int*)bmin, out, temp_w);
   } else if constexpr (sizeof(T) == 2) {  // short aligned
     const int tid = threadIdx.x;
@@ -851,21 +848,22 @@ static __device__ inline void d_REdecode(const int decsize, const T* const datai
     const int tid = threadIdx.x;
     const int num = (decsize + 7) / 8;  // number of subchunks (rounded up)
     long long* const out_l = (long long*)out;
+    assert(num <= TPB * 4);
 
     // count non-zeros
     const int beg = tid * num / TPB;
     const int end = (tid + 1) * num / TPB;
-    int cnt = 0;
+    int bmp = 0;
     for (int i = beg; i < end; i++) {
-      const byte bm = bmin[i];
-      cnt += __popc((int)bm);
+      bmp |= (int)bmin[i] << (8 * (i - beg));
     }
+    const int cnt = __popc(bmp);
     int pos = block_prefix_sum(cnt, temp_w) - cnt;
 
     // output non-repeating values based on bitmap
     long long val = (pos > 0) ? datain[pos - 1] : 0;
     for (int i = beg; i < end; i++) {
-      const byte bm = bmin[i];
+      const byte bm = bmp >> (8 * (i - beg));
       long long lval = 0;
       for (int j = 0; j < 8; j++) {
         if ((bm >> j) & 1) val = datain[pos++];

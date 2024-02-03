@@ -33,11 +33,11 @@ If, instead, you want to run LC on the GPU, generate the framework as follows:
 
 In either case, run the printed command to compile the generated code. For the CPU, use:
 
-    g++ -O3 -march=native -fopenmp -DUSE_CPU -o lc lc.cpp
+    g++ -O3 -march=native -fopenmp -DUSE_CPU -I. -std=c++17 -o lc lc.cpp
 
 For the GPU, use:
 
-    nvcc -O3 -arch=sm_70 -DUSE_GPU -Xcompiler "-O3 -march=native -fopenmp" -o lc lc.cu
+    nvcc -O3 -arch=sm_70 -DUSE_GPU -Xcompiler "-O3 -march=native -fopenmp" -I. -o lc lc.cu
 
 You may have to adjust these commands and flags to your system and compiler. For instance, the *sm_70* should be changed to match your GPU's compute capability.
 
@@ -108,6 +108,8 @@ In summary, LC supports the following modes:
 
  **EX**: This mode searches for the algorithms on the Pareto front, taking into account both the compression ratio and the compression/decompression throughput.
 
+ **TS**: This mode is for testing only and should not be used.
+
 
 ### Usage Examples for Lossy Floating-Point Compression Algorithms
 
@@ -127,6 +129,15 @@ The preprocessors work with the *CR*, *EX*, and *AL* modes. However, since both 
 
 See the ./verifiers/ directory for additional available verifiers or the description below.
 
+These quantizers replace any lost bits with zeros. If you prefer those bits be replaced by random data to minimize autocorrelation, use:
+
+    ./lc input.dat CR "QUANT_ABS_R_f32(0.01)" ".+ .+ R.+|Z.+|C.+|H.+"
+
+or
+
+    ./lc input.dat CR "QUANT_REL_R_f32(0.01)" ".+ .+ R.+|Z.+|C.+|H.+"
+
+
 
 ### Standalone Compressor and Decompressor Generation
 
@@ -142,13 +153,13 @@ To generate the GPU version, run:
 
 In either case, run the printed commands to compile the generated code. For the CPU, use:
 
-    g++ -O3 -march=native -fopenmp -o compress compressor-standalone.cpp
-    g++ -O3 -march=native -fopenmp -o decompress decompressor-standalone.cpp
+    g++ -O3 -march=native -fopenmp -I. -std=c++17 -o compress compressor-standalone.cpp
+    g++ -O3 -march=native -fopenmp -I. -std=c++17 -o decompress decompressor-standalone.cpp
 
 For the GPU, use:
 
-    nvcc -O3 -arch=sm_70 -DUSE_GPU -Xcompiler "-march=native -fopenmp" -o compress compressor-standalone.cu
-    nvcc -O3 -arch=sm_70 -DUSE_GPU -Xcompiler "-march=native -fopenmp" -o decompress decompressor-standalone.cu
+    nvcc -O3 -arch=sm_70 -DUSE_GPU -Xcompiler "-march=native -fopenmp" -I. -o compress compressor-standalone.cu
+    nvcc -O3 -arch=sm_70 -DUSE_GPU -Xcompiler "-march=native -fopenmp" -I. -o decompress decompressor-standalone.cu
 
 You may have to adjust these commands and flags to your system and compiler. For instance, the *sm_70* should be changed to match your GPU's compute capability.
 
@@ -431,6 +442,8 @@ The following code provides an example of a CPU preprocessor called **ADD_i32** 
 
 LC currently supports inputs of up to 2 GB in size.
 
+LC currently only works on little-endian systems.
+
 For testing, you can generate the LC framework using the *generate_Hybrid_LC-Framework.py* script. This will include all components and preprocessors for which both CPU and GPU versions exist, i.e., whose names match except for the leading "h_" and "d_". Running the resulting code will redundantly perform the compression and decompression on both devices and, importantly, compare the results bit for bit. This is useful to ensure that the CPU and GPU implementations of all components and preprocessors produce the exact same compressed and decompressed data.
 
 
@@ -438,7 +451,7 @@ For testing, you can generate the LC framework using the *generate_Hybrid_LC-Fra
 
 ## Team
 
-The LC framework is being developed at Texas State University by Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Rain Lawson under the supervision of Prof. Martin Burtscher and is joint work with Sheng Di and Franck Cappello from Argonne National Laboratory.
+The LC framework is being developed at Texas State University by Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, and Yiqian Liu under the supervision of Prof. Martin Burtscher and is joint work with Sheng Di and Franck Cappello from Argonne National Laboratory.
 
 
 ## Sponsor

@@ -1,11 +1,16 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
+
+# The goal of this script is to read in csv files produced by LC running in EX mode
+# and produce a list of compression components used in the top X percent (specified
+# at command line) of algorithms. For the purposes of this file, the "best" algorithm
+# has the best compression.
 
 """
 This file is part of the LC framework for synthesizing high-speed parallel lossless and error-bounded lossy data compression and decompression algorithms for CPUs and GPUs.
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2023, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -37,11 +42,6 @@ URL: The latest version of this code is available at https://github.com/burtsche
 
 Sponsor: This code is based upon work supported by the U.S. Department of Energy, Office of Science, Office of Advanced Scientific Research (ASCR), under contract DE-SC0022223.
 """
-
-# The goal of this script is to read in csv files produced by LC running in EX mode
-# and produce a list of compression components used in the top X percent (specified
-# at command line) of algorithms. For the purposes of this file, the "best" algorithm
-# has the best compression.
 
 import sys
 import os

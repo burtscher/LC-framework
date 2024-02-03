@@ -5,7 +5,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2023, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -175,7 +175,7 @@ with open("decompressor-standalone.cu", "r+") as f:
 with open("compressor-standalone.cu", "r+") as f:
   contents = f.read()
   m = re.search("##print-beg##[\s\S]*##print-end##", contents)
-  str_to_add = '  printf(\"GPU LC 1.1 Algorithm:'
+  str_to_add = '  printf(\"GPU LC 1.2 Algorithm:'
   for c in pre_uni:
       str_to_add += " " + str(c[2:])
   for c in comp_uni:
@@ -190,7 +190,7 @@ with open("compressor-standalone.cu", "r+") as f:
 with open("decompressor-standalone.cu", "r+") as f:
   contents = f.read()
   m = re.search("##print-beg##[\s\S]*##print-end##", contents)
-  str_to_add = '  printf(\"GPU LC 1.1 Algorithm:'
+  str_to_add = '  printf(\"GPU LC 1.2 Algorithm:'
   for c in pre_uni:
       str_to_add += " " + str(c[2:])
   for c in comp_uni:
@@ -277,7 +277,25 @@ with open("decompressor-standalone.cu", "r+") as f:
   f.seek(0)
   f.truncate()
   f.write(contents)
-    
+
+# Get rid of tags
+enc_file_path = "compressor-standalone.cu"
+with open(enc_file_path, "r") as file:
+    cpp_code = file.readlines()
+pattern = r'/\*##[^#]+##\*/'
+cpp_code = [line for line in cpp_code if not re.match(pattern, line.strip())]
+with open(enc_file_path, "w") as file:
+    file.write("".join(cpp_code))
+
+dec_file_path = "decompressor-standalone.cu"
+with open(dec_file_path, "r") as file:
+    cpp_code = file.readlines()
+pattern = r'/\*##[^#]+##\*/'
+cpp_code = [line for line in cpp_code if not re.match(pattern, line.strip())]
+with open(dec_file_path, "w") as file:
+    file.write("".join(cpp_code))
+
+
 print("Compile encoder with\nnvcc -O3 -arch=sm_70 -DUSE_GPU -Xcompiler \"-march=native -fopenmp\" -o compress compressor-standalone.cu\n")
 print("Run encoder with:\n./compress input_file_name compressed_file_name [y]\n")
 

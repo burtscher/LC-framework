@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2023, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -56,7 +56,6 @@ static const int TPB = 512;  // threads per block [must be power of 2 and at lea
 #include "include/max_scan.h"
 #include "include/prefix_sum.h"
 /*##include-beg##*/
-// inlcude files to be inserted
 /*##include-end##*/
 
 
@@ -82,7 +81,7 @@ static inline __device__ void s2g(void* const __restrict__ destination, const vo
       for (int i = tid + wcnt; i < len / 4; i += TPB) {
         out_w[i] = in_w[i];
       }
-      if (tid < len & 3) {
+      if (tid < (len & 3)) {
         const int i = len - 1 - tid;
         output[i] = input[i];
       }
@@ -95,7 +94,7 @@ static inline __device__ void s2g(void* const __restrict__ destination, const vo
       for (int i = tid + wcnt; i < rlen / 4; i += TPB) {
         out_w[i] = __funnelshift_r(in_w[i], in_w[i + 1], shift);
       }
-      if (tid < rlen & 3) {
+      if (tid < (rlen & 3)) {
         const int i = len - 1 - tid;
         output[i] = input[i];
       }
@@ -111,75 +110,73 @@ static __global__ void d_reset()
   g_chunk_counter = 0;
 }
 
-
-static inline __device__ int propagate_carry(const int value, const int chunkID, volatile int fullcarry [], volatile int partcarry [], volatile byte status [], int* const s_fullc)
+static inline __device__ void propagate_carry(const int value, const int chunkID, volatile int* const __restrict__ fullcarry, int* const __restrict__ s_fullc)
 {
-  const int lane = threadIdx.x % WS;
-  const bool lastthread = (threadIdx.x == (TPB - 1));
-
-  if (lastthread) {
-    *s_fullc = 0;
-    if (chunkID == 0) {
-      fullcarry[0] = value;
-      __threadfence();
-      status[0] = 2;
-    } else {
-      partcarry[chunkID] = value;
-      __threadfence();
-      status[chunkID] = 1;
-    }
+  if (threadIdx.x == TPB - 1) {  // last thread
+    fullcarry[chunkID] = (chunkID == 0) ? value : -value;
   }
 
-  if (chunkID > 0) {
+  if (chunkID != 0) {
     if (threadIdx.x + WS >= TPB) {  // last warp
-      __syncwarp();  // optional
-
-      const int cidm1 = chunkID - 1;
-      int stat = 1;
+      const int lane = threadIdx.x % WS;
+      const int cidm1ml = chunkID - 1 - lane;
+      int val = -1;
+      __syncwarp();  // not optional
       do {
-        if (cidm1 - lane >= 0) {
-          stat = status[cidm1 - lane];
+        if (cidm1ml >= 0) {
+          val = fullcarry[cidm1ml];
         }
-      } while ((__any_sync(~0, stat == 0)) || (__all_sync(~0, stat != 2)));
-      __threadfence();
-      const int mask = __ballot_sync(~0, stat == 2);
+      } while ((__any_sync(~0, val == 0)) || (__all_sync(~0, val <= 0)));
+#if defined(WS) && (WS == 64)
+      const long long mask = __ballot_sync(~0, val > 0);
+      const int pos = __ffsll(mask) - 1;
+#else
+      const int mask = __ballot_sync(~0, val > 0);
       const int pos = __ffs(mask) - 1;
-      int partc = (lane < pos) ? partcarry[chunkID - pos + lane] : 0;
-      partc += __shfl_xor_sync(~0, partc, 1);  // MB: use reduction on 8.6 devices
+#endif
+      int partc = (lane < pos) ? -val : 0;
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)
+      partc = __reduce_add_sync(~0, partc);
+#else 
+      partc += __shfl_xor_sync(~0, partc, 1);
       partc += __shfl_xor_sync(~0, partc, 2);
       partc += __shfl_xor_sync(~0, partc, 4);
       partc += __shfl_xor_sync(~0, partc, 8);
       partc += __shfl_xor_sync(~0, partc, 16);
-      if (lastthread) {
-        const int fullc = partc + fullcarry[cidm1 - pos];
+#endif
+      if (lane == pos) {
+        const int fullc = partc + val;
         fullcarry[chunkID] = fullc + value;
-        __threadfence();
-        status[chunkID] = 2;
         *s_fullc = fullc;
       }
     }
   }
-  __syncthreads();  // wait for s_fullc to be available
-
-  return *s_fullc;
 }
 
-
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ == 800)
+static __global__ __launch_bounds__(TPB, 3)
+#else
 static __global__ __launch_bounds__(TPB, 2)
-void d_encode(const byte* const __restrict__ input, const int insize, byte* const __restrict__ output, int* const __restrict__ outsize, int* const __restrict__ fullcarry, int* const __restrict__ partcarry, byte* const __restrict__ status)
+#endif
+void d_encode(const byte* const __restrict__ input, const int insize, byte* const __restrict__ output, int* const __restrict__ outsize, int* const __restrict__ fullcarry)
 {
   // allocate shared memory buffer
   __shared__ long long chunk [3 * (CS / sizeof(long long))];
-  const int last = 3 * (CS / sizeof(long long)) - 1 - WS;
+
+  // split into 3 shared memory buffers
+  byte* in = (byte*)&chunk[0 * (CS / sizeof(long long))];
+  byte* out = (byte*)&chunk[1 * (CS / sizeof(long long))];
+  byte* const temp = (byte*)&chunk[2 * (CS / sizeof(long long))];
 
   // initialize
+  const int tid = threadIdx.x;
+  const int last = 3 * (CS / sizeof(long long)) - 2 - WS;
   const int chunks = (insize + CS - 1) / CS;  // round up
   int* const head_out = (int*)output;
-  unsigned short* const size_out = (unsigned short*)&head_out[3];
+  unsigned short* const size_out = (unsigned short*)&head_out[1];
   byte* const data_out = (byte*)&size_out[chunks];
 
   // loop over chunks
-  const int tid = threadIdx.x;
   do {
     // assign work dynamically
     if (tid == 0) chunk[last] = atomicAdd(&g_chunk_counter, 1);
@@ -189,12 +186,7 @@ void d_encode(const byte* const __restrict__ input, const int insize, byte* cons
     const int chunkID = chunk[last];
     const int base = chunkID * CS;
     if (base >= insize) break;
-    
-    // create the 3 shared memory buffers
-    byte* in = (byte*)&chunk[0 * (CS / sizeof(long long))];
-    byte* out = (byte*)&chunk[1 * (CS / sizeof(long long))];
-    byte* temp = (byte*)&chunk[2 * (CS / sizeof(long long))];
-    
+
     // load chunk
     const int osize = min(CS, insize - base);
     long long* const input_l = (long long*)&input[base];
@@ -204,9 +196,9 @@ void d_encode(const byte* const __restrict__ input, const int insize, byte* cons
     }
     const int extra = osize % 8;
     if (tid < extra) out[osize - extra + tid] = input[base + osize - extra + tid];
-    __syncthreads();  // chunk produced, chunk[last] consumed
 
     // encode chunk
+    __syncthreads();  // chunk produced, chunk[last] consumed
     int csize = osize;
     bool good = true;
     /*##comp-encoder-beg##*/
@@ -216,13 +208,12 @@ void d_encode(const byte* const __restrict__ input, const int insize, byte* cons
     }
     __syncthreads();  // chunk transformed
     /*##comp-encoder-end##*/
-    
+
     // handle carry
     if (!good || (csize >= osize)) csize = osize;
-    const int offs = propagate_carry(csize, chunkID, fullcarry, partcarry, status, (int*)temp);
-    __syncthreads();  // temp consumed
+    propagate_carry(csize, chunkID, fullcarry, (int*)temp);
 
-    // store chunk
+    // reload chunk if incompressible
     if (tid == 0) size_out[chunkID] = csize;
     if (csize == osize) {
       // store original data
@@ -232,8 +223,11 @@ void d_encode(const byte* const __restrict__ input, const int insize, byte* cons
       }
       const int extra = osize % 8;
       if (tid < extra) out[osize - extra + tid] = input[base + osize - extra + tid];
-      __syncthreads();  // re-loading input done
     }
+    __syncthreads();  // "out" done, temp produced
+
+    // store chunk
+    const int offs = (chunkID == 0) ? 0 : *((int*)temp);
     s2g(&data_out[offs], out, csize);
 
     // finalize if last chunk
@@ -241,10 +235,11 @@ void d_encode(const byte* const __restrict__ input, const int insize, byte* cons
       // output header
       head_out[0] = insize;
       // compute compressed size
-      *outsize = &data_out[fullcarry[chunks - 1]] - output;
+      *outsize = &data_out[fullcarry[chunkID]] - output;
     }
   } while (true);
 }
+
 
 struct GPUTimer
 {
@@ -269,7 +264,7 @@ int main(int argc, char* argv [])
 {
   /*##print-beg##*/
   /*##print-end##*/	
-  printf("Copyright 2023 Texas State University\n\n");
+  printf("Copyright 2024 Texas State University\n\n");
 
   // read input from file
   if (argc < 3) {printf("USAGE: %s input_file_name compressed_file_name [performance_analysis (y)]\n\n", argv[0]);  exit(-1);}
@@ -324,17 +319,11 @@ int main(int argc, char* argv [])
   if (perf) {
     // warm up
     int* d_fullcarry_dummy;
-    int* d_partcarry_dummy;
-    byte* d_status_dummy;
     cudaMalloc((void **)&d_fullcarry_dummy, chunks * sizeof(int));
-    cudaMalloc((void **)&d_partcarry_dummy, chunks * sizeof(int));
-    cudaMalloc((void **)&d_status_dummy, chunks * sizeof(byte));
     d_reset<<<1, 1>>>();
-    cudaMemset(d_status_dummy, 0, chunks * sizeof(byte));
-    d_encode<<<blocks, TPB>>>(dpreencdata, dpreencsize, d_encoded, d_encsize, d_fullcarry_dummy, d_partcarry_dummy, d_status_dummy);
-    cudaFree(d_fullcarry_dummy);
-    cudaFree(d_partcarry_dummy);
-    cudaFree(d_status_dummy);   
+    cudaMemset(d_fullcarry_dummy, 0, chunks * sizeof(byte));
+    d_encode<<<blocks, TPB>>>(dpreencdata, dpreencsize, d_encoded, d_encsize, d_fullcarry_dummy);
+    cudaFree(d_fullcarry_dummy);   
   }
 
   GPUTimer dtimer;
@@ -342,17 +331,11 @@ int main(int argc, char* argv [])
   /*##pre-encoder-beg##*/
   /*##pre-encoder-end##*/
   int* d_fullcarry;
-  int* d_partcarry;
-  byte* d_status;
   cudaMalloc((void **)&d_fullcarry, chunks * sizeof(int));
-  cudaMalloc((void **)&d_partcarry, chunks * sizeof(int));
-  cudaMalloc((void **)&d_status, chunks * sizeof(byte));
   d_reset<<<1, 1>>>();
-  cudaMemset(d_status, 0, chunks * sizeof(byte));
-  d_encode<<<blocks, TPB>>>(dpreencdata, dpreencsize, d_encoded, d_encsize, d_fullcarry, d_partcarry, d_status);
+  cudaMemset(d_fullcarry, 0, chunks * sizeof(byte));
+  d_encode<<<blocks, TPB>>>(dpreencdata, dpreencsize, d_encoded, d_encsize, d_fullcarry);
   cudaFree(d_fullcarry);
-  cudaFree(d_partcarry);
-  cudaFree(d_status);
   cudaDeviceSynchronize();
   double runtime = dtimer.stop();
   

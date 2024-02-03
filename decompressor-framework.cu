@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2023, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -56,12 +56,11 @@ static const int TPB = 512;  // threads per block [must be power of 2 and at lea
 #include "include/max_scan.h"
 #include "include/prefix_sum.h"
 /*##include-beg##*/
-// inlcude files to be inserted
 /*##include-end##*/
 
 
 // copy (len) bytes from global memory (source) to shared memory (destination) using separate shared memory buffer (temp)
-// destination and temp must we word aligned
+// destination and temp must we word aligned, accesses up to CS + 3 bytes in temp
 static inline __device__ void g2s(void* const __restrict__ destination, const void* const __restrict__ source, const int len, void* const __restrict__ temp)
 {
   const int tid = threadIdx.x;
@@ -83,7 +82,7 @@ static inline __device__ void g2s(void* const __restrict__ destination, const vo
       for (int i = tid + wcnt; i < len / 4; i += TPB) {
         out_w[i] = in_w[i];
       }
-      if (tid < len & 3) {
+      if (tid < (len & 3)) {
         const int i = len - 1 - tid;
         out[i] = input[i];
       }
@@ -100,7 +99,7 @@ static inline __device__ void g2s(void* const __restrict__ destination, const vo
       for (int i = tid + wcnt; i < rlen / 4; i += TPB) {
         buf_w[i] = in_w[i];
       }
-      if (tid < rlen & 3) {
+      if (tid < (rlen & 3)) {
         const int i = len - 1 - tid;
         buf[i] = input[i];
       }
@@ -121,13 +120,16 @@ static __global__ void d_reset()
   g_chunk_counter = 0;
 }
 
-
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ == 800)
+static __global__ __launch_bounds__(TPB, 3)
+#else
 static __global__ __launch_bounds__(TPB, 2)
+#endif
 void d_decode(const byte* const __restrict__ input, byte* const __restrict__ output, int* const __restrict__ g_outsize)
 {
   // allocate shared memory buffer
   __shared__ long long chunk [3 * (CS / sizeof(long long))];
-  const int last = 3 * (CS / sizeof(long long)) - 1 - WS;
+  const int last = 3 * (CS / sizeof(long long)) - 2 - WS;
 
   // input header
   int* const head_in = (int*)input;
@@ -135,7 +137,7 @@ void d_decode(const byte* const __restrict__ input, byte* const __restrict__ out
 
   // initialize
   const int chunks = (outsize + CS - 1) / CS;  // round up
-  unsigned short* const size_in = (unsigned short*)&head_in[3];
+  unsigned short* const size_in = (unsigned short*)&head_in[1];
   byte* const data_in = (byte*)&size_in[chunks];
 
   // loop over chunks
@@ -177,11 +179,11 @@ void d_decode(const byte* const __restrict__ input, byte* const __restrict__ out
     if (csize < osize) {
       byte* tmp;
       /*##comp-decoder-beg##*/
-   
+
       /*##comp-decoder-end##*/
      }
 
-    if (csize != osize) {printf("ERROR: csize %d doesn't match osize %d\n\n", csize, osize); __trap();}
+    if (csize != osize) {printf("ERROR: csize %d doesn't match osize %d in chunk %d\n\n", csize, osize, chunkID); __trap();}
     long long* const output_l = (long long*)&output[base];
     long long* const out_l = (long long*)out;
     for (int i = tid; i < osize / 8; i += TPB) {
@@ -221,7 +223,7 @@ int main(int argc, char* argv [])
 {
   /*##print-beg##*/
   /*##print-end##*/
-  printf("Copyright 2023 Texas State University\n\n");
+  printf("Copyright 2024 Texas State University\n\n");
 
   // read input from file
   if (argc < 3) {printf("USAGE: %s compressed_file_name decompressed_file_name [performance_analysis (y)]\n\n", argv[0]);  exit(-1);}
@@ -284,7 +286,6 @@ int main(int argc, char* argv [])
   // time GPU decoding
   GPUTimer dtimer;
   int ddecsize = 0;
-  d_decode<<<blocks, TPB>>>(d_encoded, d_decoded, d_decsize);
   dtimer.start();
   d_reset<<<1, 1>>>();
   d_decode<<<blocks, TPB>>>(d_encoded, d_decoded, d_decsize);

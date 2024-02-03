@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
 
+#
+# ga_search.py
+#
+# A script which runs a genetic algorithm (GA) to speed up the search for
+# a compression algorithm. This is a work in progress.
+#
+
 """
 This file is part of the LC framework for synthesizing high-speed parallel lossless and error-bounded lossy data compression and decompression algorithms for CPUs and GPUs.
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2023, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -38,13 +45,7 @@ URL: The latest version of this code is available at https://github.com/burtsche
 Sponsor: This code is based upon work supported by the U.S. Department of Energy, Office of Science, Office of Advanced Scientific Research (ASCR), under contract DE-SC0022223.
 """
 
-#
-# ga_search.py
-#
-# A script which runs a genetic algorithm (GA) to speed up the search for
-# a compression algorithm. This is a work in progress.
-#
-
+import statistics
 import subprocess
 import random
 import copy
@@ -52,7 +53,7 @@ import argparse
 import datetime
 import sys
 import os
-
+from typing import Tuple
 
 class Algorithm:
     """ A class to represent an individual in the population, an algorithm
@@ -61,41 +62,41 @@ class Algorithm:
 
     next_id = 0
 
-    def __init__(self, stages, components=None) -> None:
+    def __init__(self, stages: int, pipeline_d: dict[str, float], components=None) -> None:
         Algorithm.next_id += 1
         self.myid = Algorithm.next_id
         self.p1id = -1
         self.p2id = -1
         self.stages = stages
-        self.eval = False
         if components:
             self.generate_random_algo(components)
+        self.pipeline_d = pipeline_d
 
     def generate_random_algo(self, components) -> None:
         self.algo = [random.choice(components) for _ in range(self.stages)]
         self.algo_str = ' '.join(self.algo)
 
     def update_algo(self, algo: list[str]) -> None:
-        self.eval = False
         self.algo = algo
         self.update_algo_str()
 
     def update_algo_str(self) -> None:
-        self.eval = False
         self.algo_str = ' '.join(self.algo)
 
     def update_id(self) -> None:
         Algorithm.next_id += 1
         self.myid = Algorithm.next_id
 
-    def reset_id() -> None:
+    def reset_id(self) -> None:
         Algorithm.next_id = 1
 
+    def check_algorithm(self) -> bool:
+        return self.algo_str in self.pipeline_d
+
     def run_algorithm(self, inputs) -> float:
-        if not self.eval:
-            self.eval = True
+        pipeline_evaluated = self.check_algorithm()
+        if not pipeline_evaluated:
             ratios = []
-            gmean_ratio = 1.0
 
             # run each file
             for inp in inputs:
@@ -104,13 +105,13 @@ class Algorithm:
                                      shell=True,
                                      text=True,
                                      capture_output=True)
-                ratios.append(parse_comp_ratio(res.stdout))
+                ratios.append(parse_comp_ratio(res.stdout, res.stderr))
 
             # compute the geometric mean
-            for r in ratios:
-                gmean_ratio *= r
-            gmean_ratio = gmean_ratio ** (1/len(inputs))
-            self.comp_ratio = gmean_ratio
+            self.comp_ratio = statistics.geometric_mean(ratios)
+            self.pipeline_d[self.algo_str] = self.comp_ratio
+        else:
+            self.comp_ratio = self.pipeline_d[self.algo_str]
 
         return self.comp_ratio
 
@@ -198,7 +199,7 @@ class Runner:
 
         # logger init
         if self.args.logger:
-            self.log = Logger(seed, args)
+            self.log = Logger(args.randomseed, args)
             if self.args.debug:
                 print(f'!Logger initialized')
 
@@ -216,7 +217,10 @@ class Runner:
         float_in_range(self.elitism_cutoff, 'elitism cutoff')
         float_in_range(self.mutation_rate, 'mutation_rate')
 
-        self.popul = [Algorithm(self.algo_stages, components=self.components)
+        self.pipeline_d: dict[str, float]
+        self.pipeline_d = {}
+        
+        self.popul = [Algorithm(self.algo_stages, self.pipeline_d, components=self.components)
                       for _ in range(self.population_size)]
         self.ratio_history = []
 
@@ -350,31 +354,62 @@ class Runner:
     def call_processes(self) -> None:
         # parallelize running each individual's algorithm
         # https://stackoverflow.com/questions/14533458/python-threading-multiple-bash-subprocesses
+        MAX_PROC = 15
 
-        gmean_ratios = [1.0 for _ in self.popul]
+        local_popul = []
+        for p in self.popul:
+            pipeline_eval = p.check_algorithm()
+            if not pipeline_eval:
+                local_popul.append(p)
+            else:
+                p.comp_ratio = p.pipeline_d[p.algo_str]
+
+        ratios_list: list[list[float]]
+        ratios_list = [[] for _ in local_popul]
         for inp in inputs:
-            cmds = [e.get_cmd(inp) for e in self.popul]
-            processes = [subprocess.Popen(
-                cmd, shell=True, stdout=subprocess.PIPE, text=True) for cmd in cmds]
+            cmds = [e.get_cmd(inp) for e in local_popul]
+            processes = []
 
-            for p in processes:
-                p.wait()
+            evaluated = 0
+            while evaluated < len(cmds):
+                if len(cmds) - evaluated < MAX_PROC:
+                    local_cmds = cmds[evaluated:]
+                    local_processes = [subprocess.Popen(
+                        cmd, shell=True, stdout=subprocess.PIPE, text=True) for cmd in local_cmds]
+                    evaluated = len(cmds)
 
-            for i in range(len(self.popul)):
+                    for p in local_processes:
+                        p.wait()
+
+                    processes += local_processes
+
+                else:
+                    local_cmds = cmds[evaluated:MAX_PROC+evaluated]
+                    local_processes = [subprocess.Popen(
+                        cmd, shell=True, stdout=subprocess.PIPE, text=True) for cmd in local_cmds]
+                    evaluated += MAX_PROC
+
+                    for p in local_processes:
+                        p.wait()
+
+                    processes += local_processes
+
+            for i, p in enumerate(local_popul):
                 stdout, stderr = processes[i].communicate()
-                gmean_ratios[i] *= parse_comp_ratio(stdout)
+                ratios_list[i].append(parse_comp_ratio(stdout, stderr))
+        
+        member: Algorithm
+        for i, member in enumerate(local_popul):
+            member.comp_ratio = statistics.geometric_mean(ratios_list[i])
+            member.pipeline_d[member.algo_str] = member.comp_ratio
 
-        for i in range(len(self.popul)):
-            gmean_ratios[i] = gmean_ratios[i] ** (1/len(inputs))
-            self.popul[i].comp_ratio = gmean_ratios[i]
 
-
-def roulette_wheel_selection(pop: list[Algorithm], weights: list[float]) -> (Algorithm, Algorithm):
+def roulette_wheel_selection(pop: list[Algorithm], weights: list[float]) -> Tuple[Algorithm, Algorithm]:
     parents = random.choices(pop, weights=weights, k=2)
     return (parents[0], parents[1])
 
 
-def tournament_selection(pop: list[Algorithm], k: int) -> (Algorithm, Algorithm):
+def tournament_selection(pop: list[Algorithm], k: int) -> Tuple[Algorithm, Algorithm]:
     picks = random.sample(pop, k=k)
     picks.sort(reverse=True, key=get_comp_ratio)
     p1 = picks[0]
@@ -393,12 +428,21 @@ def get_comp_ratio(e: Algorithm) -> float:
     return e.comp_ratio
 
 
-def parse_comp_ratio(output) -> float:
-    (_, _, comp_ratio) = output.partition("%")
+def parse_comp_ratio(output, err) -> float:
+    (_, _, comp_ratio) = output.partition("compression:")
+    (_, _, comp_ratio) = comp_ratio.partition("%")
     (comp_ratio, _, _) = comp_ratio.partition("x")
     comp_ratio = comp_ratio.strip()
     comp_ratio = comp_ratio.removesuffix('x')
-    comp_ratio = float(comp_ratio)
+    try:
+        comp_ratio = float(comp_ratio)
+    except ValueError:
+        print('!ERROR running LC!')
+        print('LC Output:')
+        print(output)
+        print('LC Error:')
+        print(err)
+        quit()
     return comp_ratio
 
 
@@ -411,10 +455,10 @@ def component_list() -> list[str]:
     return components
 
 
-def single_point_crossover(p1: Algorithm, p2: Algorithm) -> (Algorithm, Algorithm):
+def single_point_crossover(p1: Algorithm, p2: Algorithm) -> Tuple[Algorithm, Algorithm]:
     crossover_point = random.randrange(p1.stages)
-    c1 = Algorithm(p1.stages)
-    c2 = Algorithm(p1.stages)
+    c1 = Algorithm(p1.stages, p1.pipeline_d)
+    c2 = Algorithm(p1.stages, p1.pipeline_d)
     a1 = p1.algo[0:crossover_point] + p2.algo[crossover_point:]
     a2 = p2.algo[0:crossover_point] + p1.algo[crossover_point:]
 
@@ -430,10 +474,10 @@ def single_point_crossover(p1: Algorithm, p2: Algorithm) -> (Algorithm, Algorith
     return (c1, c2)
 
 
-def masked_crossover(p1: Algorithm, p2: Algorithm) -> (Algorithm, Algorithm):
+def masked_crossover(p1: Algorithm, p2: Algorithm) -> Tuple[Algorithm, Algorithm]:
     mask = get_bitmask_str(p1.stages)
-    c1 = Algorithm(p1.stages)
-    c2 = Algorithm(p1.stages)
+    c1 = Algorithm(p1.stages, p1.pipeline_d)
+    c2 = Algorithm(p1.stages, p1.pipeline_d)
     a1 = []
     a2 = []
 

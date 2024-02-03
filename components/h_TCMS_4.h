@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2023, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -40,17 +40,15 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 static inline bool h_TCMS_4(int& csize, byte in [CS], byte out [CS])
 {
   using type = unsigned int;
-  const type* const in_t = (type*)in;
+  type* const in_t = (type*)in;
   type* const out_t = (type*)out;
   const int size = csize / sizeof(type);
 
   // convert from twos-complement to magnitude-sign format
   for (int i = 0; i < size; i++) {
     const type data = in_t[i];
-    const type s = data >> (sizeof(type) * 8 - 1);
-    type val = data << 1;
-    if (s != 0) val = ~val;
-    out_t[i] = val;
+    const type s = ((std::make_signed_t<type>)data) >> (sizeof(type) * 8 - 1);
+    out_t[i] = (data << 1) ^ s;
   }
 
   // copy leftover bytes
@@ -66,17 +64,15 @@ static inline bool h_TCMS_4(int& csize, byte in [CS], byte out [CS])
 static inline void h_iTCMS_4(int& csize, byte in [CS], byte out [CS])
 {
   using type = unsigned int;
-  const type* const in_t = (type*)in;
+  type* const in_t = (type*)in;
   type* const out_t = (type*)out;
   const int size = csize / sizeof(type);
 
   // convert from magnitude-sign to twos-complement format
   for (int i = 0; i < size; i++) {
     const type data = in_t[i];
-    const type s = data & 1;
-    type val = data >> 1;
-    if (s != 0) val = ~val;
-    out_t[i] = val;
+    const type s = ((std::make_signed_t<type>)(data << (sizeof(type) * 8 - 1))) >> (sizeof(type) * 8 - 1);
+    out_t[i] = (data >> 1) ^ s;
   }
 
   // copy leftover bytes

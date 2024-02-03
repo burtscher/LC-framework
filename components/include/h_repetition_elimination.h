@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2023, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -48,7 +48,7 @@ static inline bool h_REencode(const T* const in, const int insize, T* const data
   const int num = (insize + bits - 1) / bits;  // number of subchunks (rounded up)
   int pos = 0;
   int cnt = 0;
-  T prev = ~in[0];
+  T prev = 0;
   for (int i = 0; i < num - 1; i++) {
     T bm = 0;
     for (int j = 0; j < bits; j++) {
@@ -93,7 +93,7 @@ static inline void h_REdecode(const int decsize, const T* const datain, const T*
   const int num = (decsize + bits - 1) / bits;  // number of subchunks (rounded up)
   int pos = 0;
   int cnt = 0;
-  T val = 0;  // init not needed, just to avoid warning
+  T val = 0;
   for (int i = 0; i < num - 1; i++) {
     const T bm = bmin[i];
     for (int j = 0; j < bits; j++) {

@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2023, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -135,7 +135,7 @@ int main(int argc, char* argv [])
 {
   /*##print-beg##*/
   /*##print-end##*/
-  printf("Copyright 2023 Texas State University\n\n");
+  printf("Copyright 2024 Texas State University\n\n");
 
   // read input from file
   if (argc < 3) {printf("USAGE: %s input_file_name compressed_file_name [performance_analysis(y)]\n\n", argv[0]);  exit(-1);}

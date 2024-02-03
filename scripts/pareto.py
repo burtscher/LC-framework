@@ -5,7 +5,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2023, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -100,23 +100,26 @@ def compareElemDdecThru(e1, e2):
 filename = 'all_EX_pipelines_parsed.csv'
 
 if not os.path.exists(filename):
-    print(f"Error: {filename} not found!")
+    print(f"Error: {filename} not found" )
+    exit()
 else:
     with open(filename, 'r') as f:
-        reader = csv.reader(f)
-    next(reader) # Skip first row
-    reader = csv.reader(f)
-    next(reader) # Skip second row
-    reader = csv.reader(f)
-    col1 = []
-    col2 = []
-    col3 = []
-    col4 = []
-    col5 = []
-    col6 = []
-    col7 = []
-    elems = []
-    for row in reader:
+      reader = csv.reader(f)
+      next(reader) # Skip first row
+      reader = csv.reader(f)
+      next(reader) # Skip second row
+      reader = csv.reader(f)
+      col1 = []
+      col2 = []
+      col3 = []
+      col4 = []
+      col5 = []
+      col6 = []
+      col7 = []
+      col8 = []
+      col9 = []
+      elems = []
+      for row in reader:
         col1.append(row[0])
         col2.append(float(row[1]))
         col3.append(float(row[2]))
@@ -124,7 +127,9 @@ else:
         col5.append(float(row[4]))
         col6.append(float(row[5]))
         col7.append(float(row[6]))
-        elems.append(Elem(row[0], float(row[1]), float(row[4]), float(row[6]), float(row[5]), float(row[7])))
+        col8.append(float(row[7]))
+        col9.append(float(row[8]))
+        elems.append(Elem(row[0], float(row[2]), float(row[5]), float(row[6]), float(row[7]), float(row[8])))
 
 print("Pareto host encoding")
 print("--------------------      *        *")

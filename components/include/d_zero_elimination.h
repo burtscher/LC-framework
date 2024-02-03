@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2023, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -226,7 +226,7 @@ static __device__ inline bool d_ZEencode2wordsperthread(const T* const in, const
   const unsigned long long temp3 = __ballot_sync(~0, tmp2 & 1);
   const int bmhi = (lane < 32) ? (int)temp3 : (int)(temp3 >> 32);
 #else
-  const int tmp2 = __shfl_sync(~0, comb, 16+ lane / 2) >> (lane % 2);
+  const int tmp2 = __shfl_sync(~0, comb, 16 + lane / 2) >> (lane % 2);
   const int bmhi = __ballot_sync(~0, tmp2 & 1);
 #endif
   const int subwarps = TPB / 32;
@@ -810,10 +810,13 @@ template <typename T, int maxsize = CS>
 static __device__ inline void d_ZEdecode(const int decsize, const T* const datain, const T* const bmin, T* const out, int* const temp_w)  // all sizes in number of words
 {
   if constexpr (maxsize <= 2048) {
+//    assert(false);
     d_ZEdecode_small<T, maxsize>(decsize, datain, bmin, out, temp_w);
-  } else if ((sizeof(T) >= 4) || (((size_t)bmin & 3) == 0)) {  // at least int aligned
+  } else if ((sizeof(T) >= 4) /*|| (((size_t)bmin & 3) == 0)*/) {  // at least int aligned
+//    assert(false);
     d_ZEdecode_specialized(decsize, datain, (int*)bmin, out, temp_w);
   } else if constexpr (sizeof(T) == 2) {  // short aligned
+//    assert(false);
     const int tid = threadIdx.x;
     const int num = (decsize + 15) / 16;  // number of subchunks (rounded up)
 
@@ -840,20 +843,21 @@ static __device__ inline void d_ZEdecode(const int decsize, const T* const datai
     const int tid = threadIdx.x;
     const int num = (decsize + 7) / 8;  // number of subchunks (rounded up)
     long long* const out_l = (long long*)out;
+    assert(num <= TPB * 4);
 
     // count non-zeros
     const int beg = tid * num / TPB;
     const int end = (tid + 1) * num / TPB;
-    int cnt = 0;
+    int bmp = 0;
     for (int i = beg; i < end; i++) {
-      const byte bm = bmin[i];
-      cnt += __popc((int)bm);
+      bmp |= (int)bmin[i] << (8 * (i - beg));
     }
+    const int cnt = __popc(bmp);
     int pos = block_prefix_sum(cnt, temp_w) - cnt;
 
     // output non-zero values based on bitmap
     for (int i = beg; i < end; i++) {
-      const byte bm = bmin[i];
+      const byte bm = bmp >> (8 * (i - beg));
       long long lval = 0;
       for (int j = 0; j < 8; j++) {
         long long val = 0;
