@@ -141,15 +141,15 @@ or
 
 ### Standalone Compressor and Decompressor Generation
 
-Once you have determined a good lossless or lossy compression algorithm (e.g., "TUPL4_1 R2E_1 CLOG_1"), you can generate a standalone compressor and a standalone decompressor that are optimized for this algorithm.
+Once you have determined a good lossless or lossy compression algorithm (e.g., "TUPL4_1 RRE_1 CLOG_1"), you can generate a standalone compressor and a standalone decompressor that are optimized for this algorithm.
 
 To generate the CPU version, run:
 
-    ./generate_standalone_CPU_compressor_decompressor.py "" "TUPL4_1 R2E_1 CLOG_1"
+    ./generate_standalone_CPU_compressor_decompressor.py "" "TUPL4_1 RRE_1 CLOG_1"
 
 To generate the GPU version, run:
 
-    ./generate_standalone_GPU_compressor_decompressor.py "" "TUPL4_1 R2E_1 CLOG_1"
+    ./generate_standalone_GPU_compressor_decompressor.py "" "TUPL4_1 RRE_1 CLOG_1"
 
 In either case, run the printed commands to compile the generated code. For the CPU, use:
 
@@ -215,6 +215,8 @@ Predictors guess the next value by extrapolating it from prior values and then s
 
 **DIFF**: This component computes the difference sequence (also called "delta modulation") by subtracting the previous value from the current value and outputting the resulting difference. If neighboring values correlate with each other, this tends to produce a more compressible sequence.
 
+**DIFFMS**: This component computes the difference sequence like DIFF does but outputs the result in sign-magnitude format, which is often more compressible because it tends to produce values with many leading zero bits.
+
 
 ### Reducers
 
@@ -224,11 +226,11 @@ Reducers are the only components that can compress the data. They exploit variou
 
 **HCLOG**: This component works like CLOG except it first applies the TCMS transformation to all values in a subchunk that yield no leading zero bits when using CLOG.
 
-**R2E**: This component creates a bitmap in which each bit specifies whether the corresponding word in the input is a repetition of the prior word or not. It outputs the non-repeating words and a compressed version of the bitmap that is compressed with the same algorithm.
-
 **RLE**: This component performs run-length encoding. It counts how many times a value appears in a row. Then it counts how many non-repeating values follow. Both counts are emitted and followed by a single instance of the repeating value as well as all non-repeating values.
 
-**ZERE**: This component creates a bitmap in which each bit specifies whether the corresponding word in the input is zero or not. It outputs the non-zero words and a compressed version of the bitmap like R2E does.
+**RRE**: This component creates a bitmap in which each bit specifies whether the corresponding word in the input is a repetition of the prior word or not. It outputs the non-repeating words and a compressed version of the bitmap that is repeatedly compressed with the same algorithm.
+
+**RZE**: This component creates a bitmap in which each bit specifies whether the corresponding word in the input is zero or not. It outputs the non-zero words and a compressed version of the bitmap like RRE does.
 
 
 ## Available Preprocessors
@@ -252,6 +254,8 @@ All quantizers require a parameter that specifies the maximally allowed error bo
 
 **QUANT_ABS_R**: These preprocessors quantize 32- and 64-bit floating-point values based on the provided point-wise absolute error bound. Each value from the same quantization bin is decompressed to a random value within the provided error bound to minimize autocorrelation. These preprocessors guarantee that the original value V is decoded to a value V' such that V - EB <= V' <= V + EB.
 
+**QUANT_R2R**: These preprocessors quantize 32- and 64-bit floating-point values just like their QUANT_ABS counterparts except the provided error bound is first multiplied by the range of values occurring in the input, where the range is the maximum value minus the minimum value.
+
 **QUANT_REL_0**: These preprocessors quantize 32- and 64-bit floating-point values based on the provided point-wise relative error bound. All values that end up in the same quantization bin are decompressed to the same value. These preprocessors guarantee that the original value V is decoded to a value V' with the same sign such that |V| / (1 + EB) <= |V'| <= |V| \* (1 + EB).
 
 **QUANT_REL_R**: These preprocessors quantize 32- and 64-bit floating-point values based on the provided point-wise relative error bound. Each value from the same quantization bin is decompressed to a random value within the provided error bound to minimize autocorrelation. These preprocessors guarantee that the original value V is decoded to a value V' with the same sign such that |V| / (1 + EB) <= |V'| <= |V| \* (1 + EB).
@@ -266,6 +270,8 @@ Some verifiers support different data types. The end of their names indicates th
 **PASS**: This verifier always passes verification and is only useful for debugging.
 
 **MAXABS**: This verifier takes a point-wise absolute error bound as parameter and only passes verification if every output value is within the specified error bound.
+
+**MAXR2R**: This verifier works like MAXABS except the provided error bound is first multiplied by the range of values occurring in the input, where the range is the maximum value minus the minimum value.
 
 **MAXREL**: This verifier takes a point-wise relative error bound as parameter and only passes verification if every output value is within the specified error bound.
 
