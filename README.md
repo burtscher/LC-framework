@@ -1,7 +1,8 @@
 # LC Framework
 
-LC is a framework for automatically creating high-speed lossless and error-bounded lossy data compression and decompression algorithms.
+LC is a framework for automatically generating high-speed lossless and guaranteed-error-bounded lossy data compression and decompression algorithms. It supports CPUs and GPUs.
 
+The framework code and tutorial are available at https://github.com/burtscher/LC-framework/.
 
 ## Overview
 
@@ -10,7 +11,7 @@ LC consists of the following three parts:
  - Preprocessor library
  - Framework
 
-Both libraries contain encoders and decoders for CPU and GPU execution. The user can extend these libraries. The framework takes preprocessors and components from these libraries and chains them into a pipeline to build a compression algorithm. It similarly chains the corresponding decoders in the opposite order to build the matching decompression algorithm. Moreover, the framework can automatically search for effective algorithms for a given input file or set of files by testing sets of components in each pipeline stage.
+Both libraries contain encoders and decoders for CPU and GPU execution. The user can extend these libraries. The framework takes preprocessors and components from these libraries and chains them into a pipeline to build a compression algorithm. It similarly chains the corresponding decoders in the opposite order to build the matching decompression algorithm. Moreover, the framework can automatically search for effective algorithms for a given input file or set of files by testing user-selected sets of components in each pipeline stage.
 
 ---
 
@@ -245,7 +246,9 @@ These quantizers support INFs and NaNs. The end of the quantizer name indicates 
 
 **NUL**: This preprocessor performs the identity transformation, meaning it outputs the input verbatim. It takes no parameters.
 
-**LORxD**: This preprocessor performs an x-dimensional (x = 1, 2, or 3) Lorenzo transformation, i.e., it computes a multidimensional difference sequence. It takes x parameters specifying the size of the input along each dimension.
+**LOR1D**: This preprocessor performs a 1-dimensional Lorenzo transformation, i.e., it computes a difference sequence.
+
+[//]: # "**LORxD**: This preprocessor performs an x-dimensional (x = 1, 2, or 3) Lorenzo transformation, i.e., it computes a multidimensional difference sequence. It takes x parameters specifying the size of the input along each dimension."
 
 
 ### Lossy Quantizers
