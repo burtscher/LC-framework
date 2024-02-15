@@ -2,7 +2,10 @@
 
 LC is a framework for automatically generating high-speed lossless and guaranteed-error-bounded lossy data compression and decompression algorithms. It supports CPUs and GPUs.
 
-The framework code and tutorial are available at https://github.com/burtscher/LC-framework/.
+The framework code and tutorial are available at <https://github.com/burtscher/LC-framework/>.
+
+If any part of this tutorial does not work for you or you have other question about LC, please don't hesitate to contact us at <burtscher@txstate.edu> so we can help.
+
 
 ## Overview
 
@@ -95,7 +98,7 @@ If you are interested in the throughput in addition to the compression ratio, us
 
     ./lc input.dat EX "" ".+ .+"
 
-The output includes the Pareto front (https://en.wikipedia.org/wiki/Pareto_front) at the end, allowing the user to pick the best algorithm for a given compression or decompression throughput. The six columns list the algorithm, the compression ratio, the CPU compression throughput, the CPU decompression throughput, the GPU compression throughput, and the GPU decompression throughput. The throughputs are given in gigabytes per second.
+The output includes the Pareto front (<https://en.wikipedia.org/wiki/Pareto_front>) at the end, allowing the user to pick the best algorithm for a given compression or decompression throughput. The six columns list the algorithm, the compression ratio, the CPU compression throughput, the CPU decompression throughput, the GPU compression throughput, and the GPU decompression throughput. The throughputs are given in gigabytes per second.
 
 All *CR* and *EX* runs with more than one algorithm also write their results to a CSV file that can be opened with most spreadsheet applications to view and postprocess the results.
 
