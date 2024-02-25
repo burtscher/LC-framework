@@ -54,6 +54,7 @@ static const int TPB = 512;  // threads per block [must be power of 2 and at lea
 #include <cstring>
 #include <cstdio>
 #include <algorithm>
+#include <stdexcept>
 #include <sys/time.h>
 /*##include-beg##*/
 /*##include-end##*/
@@ -67,6 +68,7 @@ struct CPUTimer
   void start() {gettimeofday(&beg, NULL);}
   double stop() {gettimeofday(&end, NULL); return end.tv_sec - beg.tv_sec + (end.tv_usec - beg.tv_usec) / 1000000.0;}
 };
+
 
 static void h_decode(const byte* const __restrict__ input, byte* const __restrict__ output, int& outsize)
 {
@@ -99,7 +101,7 @@ static void h_decode(const byte* const __restrict__ input, byte* const __restric
     const int osize = std::min(CS, outsize - base);
     int csize = size_in[chunkID];
     if (csize == osize) {
-      
+
       // simply copy
       memcpy(&output[base], &data_in[start[chunkID]], osize);
     } else {
@@ -110,15 +112,16 @@ static void h_decode(const byte* const __restrict__ input, byte* const __restric
       /*##comp-decoder-beg##*/
       std::swap(in, out);
       h_iCLOG_2(csize, in, out);
-      /*##comp-decoder-end##*/      
-      
-      if (csize != osize) {fprintf(stderr, "ERROR: csize %d does not match osize %d\n\n", csize, osize); exit(-1);}
+      /*##comp-decoder-end##*/
+
+      if (csize != osize) {fprintf(stderr, "ERROR: csize %d does not match osize %d\n\n", csize, osize); throw std::runtime_error("LC error");}
       memcpy(&output[base], out, csize);
     }
   }
 
   delete [] start;
 }
+
 
 int main(int argc, char* argv [])
 {
@@ -127,7 +130,7 @@ int main(int argc, char* argv [])
   printf("Copyright 2024 Texas State University\n\n");
 
   // read input from file
-  if (argc < 3) {printf("USAGE: %s compressed_file_name decompressed_file_name [performance_analysis (y)]\n\n", argv[0]);  exit(-1);}
+  if (argc < 3) {printf("USAGE: %s compressed_file_name decompressed_file_name [performance_analysis (y)]\n\n", argv[0]); return -1;}
 
   // read input file
   FILE* const fin = fopen(argv[1], "rb");
@@ -147,13 +150,13 @@ int main(int argc, char* argv [])
   if (perf_str != nullptr && strcmp(perf_str, "y") == 0) {
     perf = true;
   } else if (perf_str != nullptr && strcmp(perf_str, "y") != 0) {
-    printf("Invalid performance analysis argument. Use 'y' or leave it empty.\n");
-    exit(-1);
+    fprintf(stderr, "ERROR: Invalid argument. Use 'y' or nothing.\n");
+    throw std::runtime_error("LC error");
   }
 
   // allocate CPU memory
   byte* hdecoded = new byte [pre_size];
-  int hdecsize = 0;  
+  int hdecsize = 0;
 
   if (perf) {
     // warm up
@@ -187,5 +190,5 @@ int main(int argc, char* argv [])
 
   delete [] hencoded;
   delete [] hdecoded;
-  return 0; 
+  return 0;
 }

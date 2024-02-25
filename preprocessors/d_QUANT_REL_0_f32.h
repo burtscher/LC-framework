@@ -135,13 +135,13 @@ static __global__ void d_iQUANT_REL_0_f32_kernel(const int len, byte* const __re
 
 static inline void d_QUANT_REL_0_f32(int& size, byte*& data, const int paramc, const double paramv [])
 {
-  if (size % sizeof(float) != 0) {fprintf(stderr, "QUANT_REL_0_f32: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(float)); exit(-1);}
+  if (size % sizeof(float) != 0) {fprintf(stderr, "QUANT_REL_0_f32: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(float)); throw std::runtime_error("LC error");}
   const int len = size / sizeof(float);
-  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_REL_0_f32(error_bound [, threshold])\n"); exit(-1);}
+  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_REL_0_f32(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
   const float errorbound = paramv[0];
   const float threshold = (paramc == 2) ? paramv[1] : std::numeric_limits<float>::infinity();
-  if (errorbound < 1E-5) {fprintf(stderr, "QUANT_REL_0_f32: ERROR: error_bound must be at least %e\n", 1E-5f); exit(-1);}  // minimum positive normalized value
-  if (threshold <= errorbound) {fprintf(stderr, "QUANT_REL_0_f32: ERROR: threshold must be larger than error_bound\n"); exit(-1);}
+  if (errorbound < 1E-5) {fprintf(stderr, "QUANT_REL_0_f32: ERROR: error_bound must be at least %e\n", 1E-5f); throw std::runtime_error("LC error");}  // minimum positive normalized value
+  if (threshold <= errorbound) {fprintf(stderr, "QUANT_REL_0_f32: ERROR: threshold must be larger than error_bound\n"); throw std::runtime_error("LC error");}
 
   const float log2eb = 2 * d_QUANT_REL_0_f32_log2approxf(1 + errorbound);
   const float inv_log2eb = 1 / log2eb;
@@ -152,11 +152,11 @@ static inline void d_QUANT_REL_0_f32(int& size, byte*& data, const int paramc, c
 
 static inline void d_iQUANT_REL_0_f32(int& size, byte*& data, const int paramc, const double paramv [])
 {
-  if (size % sizeof(float) != 0) {fprintf(stderr, "QUANT_REL_0_f32: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(float)); exit(-1);}
+  if (size % sizeof(float) != 0) {fprintf(stderr, "QUANT_REL_0_f32: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(float)); throw std::runtime_error("LC error");}
   const int len = size / sizeof(float);
-  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_REL_0_f32(error_bound [, threshold])\n"); exit(-1);}
+  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_REL_0_f32(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
   const float errorbound = paramv[0];
-  if (errorbound < 1E-5f) {fprintf(stderr, "QUANT_REL_0_f32: ERROR: error_bound must be at least %e\n", 1E-5f); exit(-1);}  // minimum positive normalized value
+  if (errorbound < 1E-5f) {fprintf(stderr, "QUANT_REL_0_f32: ERROR: error_bound must be at least %e\n", 1E-5f); throw std::runtime_error("LC error");}  // minimum positive normalized value
 
   const float log2eb = 2 * d_QUANT_REL_0_f32_log2approxf(1 + errorbound);
 

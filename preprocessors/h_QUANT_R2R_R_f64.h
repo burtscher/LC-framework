@@ -48,9 +48,9 @@ static unsigned int h_QUANT_R2R_R_f64_hash(unsigned int val)
 
 static inline void h_QUANT_R2R_R_f64(int& size, byte*& data, const int paramc, const double paramv [])
 {
-  if (size % sizeof(double) != 0) {fprintf(stderr, "QUANT_R2R_R_f64: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(double)); exit(-1);}
+  if (size % sizeof(double) != 0) {fprintf(stderr, "QUANT_R2R_R_f64: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(double)); throw std::runtime_error("LC error");}
   const int len = size / sizeof(double);
-  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_R2R_R_f64(error_bound [, threshold])\n"); exit(-1);}
+  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_R2R_R_f64(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
   const double errorbound = paramv[0];
   const double threshold = (paramc == 2) ? paramv[1] : std::numeric_limits<double>::infinity();
 
@@ -71,8 +71,8 @@ static inline void h_QUANT_R2R_R_f64(int& size, byte*& data, const int paramc, c
 
   const double adj_eb = (maxf - minf) * errorbound;
   data_f[len] = adj_eb;
-  if (adj_eb < std::numeric_limits<double>::min()) {fprintf(stderr, "QUANT_R2R_R_f64: ERROR: error_bound must be at least %e, R2R error bound was calculated to be %e\n", std::numeric_limits<double>::min(), adj_eb); exit(-1);}  // minimum positive normalized value
-  if (threshold <= adj_eb) {fprintf(stderr, "QUANT_R2R_R_f64: ERROR: threshold must be larger than error_bound, R2R error bound was calculated to be %e\n", adj_eb); exit(-1);}
+  if (adj_eb < std::numeric_limits<double>::min()) {fprintf(stderr, "QUANT_R2R_R_f64: ERROR: error_bound must be at least %e, R2R error bound was calculated to be %e\n", std::numeric_limits<double>::min(), adj_eb); throw std::runtime_error("LC error");}  // minimum positive normalized value
+  if (threshold <= adj_eb) {fprintf(stderr, "QUANT_R2R_R_f64: ERROR: threshold must be larger than error_bound, R2R error bound was calculated to be %e\n", adj_eb); throw std::runtime_error("LC error");}
 
   const int mantissabits = 52;
   const long long maxbin = 1LL << (mantissabits - 1);  // leave 1 bit for sign
@@ -110,14 +110,14 @@ static inline void h_QUANT_R2R_R_f64(int& size, byte*& data, const int paramc, c
 
 static inline void h_iQUANT_R2R_R_f64(int& size, byte*& data, const int paramc, const double paramv [])
 {
-  if (size % sizeof(double) != 0) {fprintf(stderr, "QUANT_R2R_R_f64: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(double)); exit(-1);}
+  if (size % sizeof(double) != 0) {fprintf(stderr, "QUANT_R2R_R_f64: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(double)); throw std::runtime_error("LC error");}
   const int len = size / sizeof(double) - 1;
-  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_R2R_R_f64(error_bound [, threshold])\n"); exit(-1);}
+  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_R2R_R_f64(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
 
   double* const data_f = (double*)data;
   long long* const data_i = (long long*)data_f;
   const double errorbound = data_f[len];
-  if (errorbound < std::numeric_limits<double>::min()) {fprintf(stderr, "QUANT_R2R_R_f64: ERROR: error_bound must be at least %e\n", std::numeric_limits<double>::min()); exit(-1);}  // minimum positive normalized value
+  if (errorbound < std::numeric_limits<double>::min()) {fprintf(stderr, "QUANT_R2R_R_f64: ERROR: error_bound must be at least %e\n", std::numeric_limits<double>::min()); throw std::runtime_error("LC error");}  // minimum positive normalized value
 
   const int mantissabits = 52;
   const long long mask = (1LL << mantissabits) - 1;

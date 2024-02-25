@@ -51,6 +51,7 @@ static const int TPB = 512;  // threads per block [must be power of 2 and at lea
 #include <string>
 #include <cmath>
 #include <cassert>
+#include <stdexcept>
 #include <cuda.h>
 #include "include/sum_reduction.h"
 #include "include/max_scan.h"
@@ -102,6 +103,7 @@ static inline __device__ void s2g(void* const __restrict__ destination, const vo
   }
 }
 
+
 static __device__ int g_chunk_counter;
 
 
@@ -109,6 +111,7 @@ static __global__ void d_reset()
 {
   g_chunk_counter = 0;
 }
+
 
 static inline __device__ void propagate_carry(const int value, const int chunkID, volatile int* const __restrict__ fullcarry, int* const __restrict__ s_fullc)
 {
@@ -137,7 +140,7 @@ static inline __device__ void propagate_carry(const int value, const int chunkID
       int partc = (lane < pos) ? -val : 0;
 #if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)
       partc = __reduce_add_sync(~0, partc);
-#else 
+#else
       partc += __shfl_xor_sync(~0, partc, 1);
       partc += __shfl_xor_sync(~0, partc, 2);
       partc += __shfl_xor_sync(~0, partc, 4);
@@ -152,6 +155,7 @@ static inline __device__ void propagate_carry(const int value, const int chunkID
     }
   }
 }
+
 
 #if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ == 800)
 static __global__ __launch_bounds__(TPB, 3)
@@ -244,30 +248,32 @@ void d_encode(const byte* const __restrict__ input, const int insize, byte* cons
 struct GPUTimer
 {
   cudaEvent_t beg, end;
-  GPUTimer() {cudaEventCreate(&beg);  cudaEventCreate(&end);}
-  ~GPUTimer() {cudaEventDestroy(beg);  cudaEventDestroy(end);}
+  GPUTimer() {cudaEventCreate(&beg); cudaEventCreate(&end);}
+  ~GPUTimer() {cudaEventDestroy(beg); cudaEventDestroy(end);}
   void start() {cudaEventRecord(beg, 0);}
-  double stop() {cudaEventRecord(end, 0);  cudaEventSynchronize(end);  float ms;  cudaEventElapsedTime(&ms, beg, end);  return 0.001 * ms;}
+  double stop() {cudaEventRecord(end, 0); cudaEventSynchronize(end); float ms; cudaEventElapsedTime(&ms, beg, end); return 0.001 * ms;}
 };
 
-static void CheckCuda(const int line)  //MB: remove later
+
+static void CheckCuda(const int line)
 {
   cudaError_t e;
   cudaDeviceSynchronize();
   if (cudaSuccess != (e = cudaGetLastError())) {
-    fprintf(stderr, "CUDA error %d on line %d: %s\n", e, line, cudaGetErrorString(e));
-    exit(-1);
+    fprintf(stderr, "CUDA error %d on line %d: %s\n\n", e, line, cudaGetErrorString(e));
+    throw std::runtime_error("LC error");
   }
 }
+
 
 int main(int argc, char* argv [])
 {
   /*##print-beg##*/
-  /*##print-end##*/	
+  /*##print-end##*/
   printf("Copyright 2024 Texas State University\n\n");
 
   // read input from file
-  if (argc < 3) {printf("USAGE: %s input_file_name compressed_file_name [performance_analysis (y)]\n\n", argv[0]);  exit(-1);}
+  if (argc < 3) {printf("USAGE: %s input_file_name compressed_file_name [performance_analysis (y)]\n\n", argv[0]); return -1;}
   FILE* const fin = fopen(argv[1], "rb");
   fseek(fin, 0, SEEK_END);
   const int fsize = ftell(fin);  assert(fsize > 0);
@@ -283,22 +289,22 @@ int main(int argc, char* argv [])
   if (perf_str != nullptr && strcmp(perf_str, "y") == 0) {
     perf = true;
   } else if (perf_str != nullptr && strcmp(perf_str, "y") != 0) {
-    printf("Invalid performance analysis argument. Use 'y' or leave it empty.\n");
-    exit(-1);
+    fprintf(stderr, "ERROR: Invalid argument. Use 'y' or nothing.\n");
+    throw std::runtime_error("LC error");
   }
 
   // get GPU info
   cudaSetDevice(0);
   cudaDeviceProp deviceProp;
   cudaGetDeviceProperties(&deviceProp, 0);
-  if ((deviceProp.major == 9999) && (deviceProp.minor == 9999)) {fprintf(stderr, "ERROR: no CUDA capable device detected\n\n"); exit(-1);}
+  if ((deviceProp.major == 9999) && (deviceProp.minor == 9999)) {fprintf(stderr, "ERROR: no CUDA capable device detected\n\n"); throw std::runtime_error("LC error");}
   const int SMs = deviceProp.multiProcessorCount;
   const int mTpSM = deviceProp.maxThreadsPerMultiProcessor;
   const int blocks = SMs * (mTpSM / TPB);
   const int chunks = (insize + CS - 1) / CS;  // round up
   CheckCuda(__LINE__);
   const int maxsize = 3 * sizeof(int) + chunks * sizeof(short) + chunks * CS;
-  
+
   // allocate GPU memory
   byte* dencoded;
   cudaMallocHost((void **)&dencoded, maxsize);
@@ -315,7 +321,7 @@ int main(int argc, char* argv [])
   cudaMalloc((void **)&dpreencdata, insize);
   cudaMemcpy(dpreencdata, d_input, insize, cudaMemcpyDeviceToDevice);
   int dpreencsize = insize;
-  
+
   if (perf) {
     // warm up
     int* d_fullcarry_dummy;
@@ -323,7 +329,7 @@ int main(int argc, char* argv [])
     d_reset<<<1, 1>>>();
     cudaMemset(d_fullcarry_dummy, 0, chunks * sizeof(byte));
     d_encode<<<blocks, TPB>>>(dpreencdata, dpreencsize, d_encoded, d_encsize, d_fullcarry_dummy);
-    cudaFree(d_fullcarry_dummy);   
+    cudaFree(d_fullcarry_dummy);
   }
 
   GPUTimer dtimer;
@@ -338,7 +344,7 @@ int main(int argc, char* argv [])
   cudaFree(d_fullcarry);
   cudaDeviceSynchronize();
   double runtime = dtimer.stop();
-  
+
   // get encoded GPU result
   int dencsize = 0;
   cudaMemcpy(&dencsize, d_encsize, sizeof(int), cudaMemcpyDeviceToHost);

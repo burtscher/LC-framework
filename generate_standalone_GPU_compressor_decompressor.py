@@ -146,7 +146,7 @@ for x in pre_list:
 # update include list
 with open("compressor-standalone.cu", "r+") as f:
   contents = f.read()
-  m = re.search("##include-beg##[\s\S]*##include-end##", contents)
+  m = re.search(r"##include-beg##[\s\S]*##include-end##", contents)
   str_to_add = ''
   for c in pre_uni:
     str_to_add += "#include \"preprocessors/" + str(c) + ".h\"\n"
@@ -160,7 +160,7 @@ with open("compressor-standalone.cu", "r+") as f:
 
 with open("decompressor-standalone.cu", "r+") as f:
   contents = f.read()
-  m = re.search("##include-beg##[\s\S]*##include-end##", contents)
+  m = re.search(r"##include-beg##[\s\S]*##include-end##", contents)
   str_to_add = ''
   for c in pre_uni:
     str_to_add += "#include \"preprocessors/" + str(c) + ".h\"\n"
@@ -174,7 +174,7 @@ with open("decompressor-standalone.cu", "r+") as f:
 # update print
 with open("compressor-standalone.cu", "r+") as f:
   contents = f.read()
-  m = re.search("##print-beg##[\s\S]*##print-end##", contents)
+  m = re.search(r"##print-beg##[\s\S]*##print-end##", contents)
   str_to_add = '  printf(\"GPU LC 1.2 Algorithm:'
   for c in pre_uni:
       str_to_add += " " + str(c[2:])
@@ -189,7 +189,7 @@ with open("compressor-standalone.cu", "r+") as f:
 
 with open("decompressor-standalone.cu", "r+") as f:
   contents = f.read()
-  m = re.search("##print-beg##[\s\S]*##print-end##", contents)
+  m = re.search(r"##print-beg##[\s\S]*##print-end##", contents)
   str_to_add = '  printf(\"GPU LC 1.2 Algorithm:'
   for c in pre_uni:
       str_to_add += " " + str(c[2:])
@@ -204,7 +204,7 @@ with open("decompressor-standalone.cu", "r+") as f:
 # update comp encoder
 with open("compressor-standalone.cu", "r+") as f:
   contents = f.read()
-  m = re.search("##comp-encoder-beg##[\s\S]*##comp-encoder-end##", contents)
+  m = re.search(r"##comp-encoder-beg##[\s\S]*##comp-encoder-end##", contents)
   str_to_add = ''
   for c in comp_list:
     c = c[2:]
@@ -217,7 +217,7 @@ with open("compressor-standalone.cu", "r+") as f:
 # update pre encoder
 with open("compressor-standalone.cu", "r+") as f:
     contents = f.read()
-    m = re.search("##pre-encoder-beg##[\s\S]*##pre-encoder-end##", contents)
+    m = re.search(r"##pre-encoder-beg##[\s\S]*##pre-encoder-end##", contents)
     str_to_add = ''
     first_iteration = True
     for d in preprocessor_params.keys():
@@ -244,7 +244,7 @@ pre_list.reverse()
 # update pre decoder
 with open("decompressor-standalone.cu", "r+") as f:
     contents = f.read()
-    m = re.search("##pre-decoder-beg##[\s\S]*##pre-decoder-end##", contents)
+    m = re.search(r"##pre-decoder-beg##[\s\S]*##pre-decoder-end##", contents)
     str_to_add = ''
     first_iteration = True
     for d in reversed(preprocessor_params.keys()):
@@ -268,7 +268,7 @@ with open("decompressor-standalone.cu", "r+") as f:
 # update comp decoder
 with open("decompressor-standalone.cu", "r+") as f:
   contents = f.read()
-  m = re.search("##comp-decoder-beg##[\s\S]*##comp-decoder-end##", contents)
+  m = re.search(r"##comp-decoder-beg##[\s\S]*##comp-decoder-end##", contents)
   str_to_add = ''
   for c in comp_list:
     c = c[2:]
@@ -295,8 +295,8 @@ cpp_code = [line for line in cpp_code if not re.match(pattern, line.strip())]
 with open(dec_file_path, "w") as file:
     file.write("".join(cpp_code))
 
-print("Compile encoder with\nnvcc -O3 -arch=sm_70 -DUSE_GPU -Xcompiler \"-march=native -fopenmp\" -I. -o compress compressor-standalone.cu\n")
+print("Compile encoder with\nnvcc -O3 -arch=sm_70 -fmad=false -Xcompiler \"-O3 -march=native -fopenmp -mno-fma\" -I. -o compress compressor-standalone.cu\n")
 print("Run encoder with:\n./compress input_file_name compressed_file_name [y]\n")
-print("Compile decoder with\nnvcc -O3 -arch=sm_70 -DUSE_GPU -Xcompiler \"-march=native -fopenmp\" -I. -o decompress decompressor-standalone.cu\n")
+print("Compile decoder with\nnvcc -O3 -arch=sm_70 -fmad=false -Xcompiler \"-O3 -march=native -fopenmp -mno-fma\" -I. -o decompress decompressor-standalone.cu\n")
 print("Run decoder with:\n./decompress compressed_file_name decompressed_file_name [y]\n")
 

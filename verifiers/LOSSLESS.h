@@ -42,7 +42,7 @@ static void LOSSLESS(const int size, const byte* const __restrict__ data1, const
   for (int i = 0; i < size; i++) {
     if (data1[i] != data2[i]) {
       fprintf(stderr, "LOSSLESS ERROR: decoded data differs from original data at byte %d: '%x' vs '%x'\n\n", i, data1[i], data2[i]);
-      exit(-1);
+      throw std::runtime_error("LC error");
     }
   }
   printf("LOSSLESS verification passed\n");

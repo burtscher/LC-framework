@@ -51,7 +51,7 @@ static inline void h_LOR1D_i32(int& size, byte*& data, const int paramc, const d
   // Check that size is correct
   if (size % sizeof(type) != 0) {
     fprintf(stderr, "ERROR: size %d is not evenly divisible by type size %ld\n", size, sizeof(type));
-    exit(-1);
+    throw std::runtime_error("LC error");
   }
   int insize = size / sizeof(type);
   type* out = new type[insize];
@@ -79,7 +79,7 @@ static inline void h_iLOR1D_i32(int& size, byte*& data, const int paramc, const 
   // Check that size is correct
   if (size % sizeof(type) != 0) {
     fprintf(stderr, "ERROR: size %d is not evenly divisible by type size %ld\n", size, sizeof(type));
-    exit(-1);
+    throw std::runtime_error("LC error");
   }
   int insize = size / sizeof(type);
   type* out = new type[insize];

@@ -39,13 +39,13 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 
 static inline void h_QUANT_ABS_0_f64(int& size, byte*& data, const int paramc, const double paramv [])
 {
-  if (size % sizeof(double) != 0) {fprintf(stderr, "QUANT_ABS_0_f64: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(double)); exit(-1);}
+  if (size % sizeof(double) != 0) {fprintf(stderr, "QUANT_ABS_0_f64: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(double)); throw std::runtime_error("LC error");}
   const int len = size / sizeof(double);
-  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_ABS_0_f64(error_bound [, threshold])\n"); exit(-1);}
+  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_ABS_0_f64(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
   const double errorbound = paramv[0];
   const double threshold = (paramc == 2) ? paramv[1] : std::numeric_limits<double>::infinity();
-  if (errorbound < std::numeric_limits<double>::min()) {fprintf(stderr, "QUANT_ABS_0_f64: ERROR: error_bound must be at least %e\n", std::numeric_limits<double>::min()); exit(-1);}  // minimum positive normalized value
-  if (threshold <= errorbound) {fprintf(stderr, "QUANT_ABS_0_f64: ERROR: threshold must be larger than error_bound\n"); exit(-1);}
+  if (errorbound < std::numeric_limits<double>::min()) {fprintf(stderr, "QUANT_ABS_0_f64: ERROR: error_bound must be at least %e\n", std::numeric_limits<double>::min()); throw std::runtime_error("LC error");}  // minimum positive normalized value
+  if (threshold <= errorbound) {fprintf(stderr, "QUANT_ABS_0_f64: ERROR: threshold must be larger than error_bound\n"); throw std::runtime_error("LC error");}
 
   double* const data_f = (double*)data;
   long long* const data_i = (long long*)data;
@@ -77,11 +77,11 @@ static inline void h_QUANT_ABS_0_f64(int& size, byte*& data, const int paramc, c
 
 static inline void h_iQUANT_ABS_0_f64(int& size, byte*& data, const int paramc, const double paramv [])
 {
-  if (size % sizeof(double) != 0) {fprintf(stderr, "QUANT_ABS_0_f64: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(double)); exit(-1);}
+  if (size % sizeof(double) != 0) {fprintf(stderr, "QUANT_ABS_0_f64: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(double)); throw std::runtime_error("LC error");}
   const int len = size / sizeof(double);
-  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_ABS_0_f64(error_bound [, threshold])\n"); exit(-1);}
+  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_ABS_0_f64(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
   const double errorbound = paramv[0];
-  if (errorbound < std::numeric_limits<double>::min()) {fprintf(stderr, "QUANT_ABS_0_f64: ERROR: error_bound must be at least %e\n", std::numeric_limits<double>::min()); exit(-1);}  // minimum positive normalized value
+  if (errorbound < std::numeric_limits<double>::min()) {fprintf(stderr, "QUANT_ABS_0_f64: ERROR: error_bound must be at least %e\n", std::numeric_limits<double>::min()); throw std::runtime_error("LC error");}  // minimum positive normalized value
 
   double* const data_f = (double*)data;
   long long* const data_i = (long long*)data;

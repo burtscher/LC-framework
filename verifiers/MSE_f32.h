@@ -41,8 +41,8 @@ static void MSE_f32(const int size, const byte* const __restrict__ recon, const 
 {
   using type = float;
 
-  if ((size % sizeof(type)) != 0) {fprintf(stderr, "ERROR: MSE_f32 requires data to be a multiple of %d bytes long\n", (int)sizeof(type)); exit(-1);}
-  if (paramc != 1) {fprintf(stderr, "ERROR: MSE_f32 requires one parameter that specifies the maximum allowed mean squared error\n"); exit(-1);}
+  if ((size % sizeof(type)) != 0) {fprintf(stderr, "ERROR: MSE_f32 requires data to be a multiple of %d bytes long\n", (int)sizeof(type)); throw std::runtime_error("LC error");}
+  if (paramc != 1) {fprintf(stderr, "ERROR: MSE_f32 requires one parameter that specifies the maximum allowed mean squared error\n"); throw std::runtime_error("LC error");}
 
   const type* const orig_t = (type*)orig;
   const type* const recon_t = (type*)recon;
@@ -56,7 +56,7 @@ static void MSE_f32(const int size, const byte* const __restrict__ recon, const 
   }
   mse /= len;
 
-  if (mse > errorbound) {fprintf(stderr, "MSE_f32 ERROR: decoded data's mean squared error of %e exceeds maximum allowed value of %e\n\n", mse, errorbound); exit(-1);}
+  if (mse > errorbound) {fprintf(stderr, "MSE_f32 ERROR: decoded data's mean squared error of %e exceeds maximum allowed value of %e\n\n", mse, errorbound); throw std::runtime_error("LC error");}
 
   printf("MSE_f32 verification passed\n");
 }

@@ -54,6 +54,7 @@ static const int TPB = 512;  // threads per block [must be power of 2 and at lea
 #include <cstring>
 #include <cstdio>
 #include <algorithm>
+#include <stdexcept>
 #include <sys/time.h>
 /*##include-beg##*/
 /*##include-end##*/
@@ -67,6 +68,7 @@ struct CPUTimer
   void start() {gettimeofday(&beg, NULL);}
   double stop() {gettimeofday(&end, NULL); return end.tv_sec - beg.tv_sec + (end.tv_usec - beg.tv_usec) / 1000000.0;}
 };
+
 
 static void h_encode(const byte* const __restrict__ input, const int insize, byte* const __restrict__ output, int& outsize)
 {
@@ -89,7 +91,7 @@ static void h_encode(const byte* const __restrict__ input, const int insize, byt
     const int base = chunkID * CS;
     const int osize = std::min(CS, insize - base);
     memcpy(out, &input[base], osize);
-    
+
     // encode chunk
     int csize = osize;
     bool good = true;
@@ -99,7 +101,7 @@ static void h_encode(const byte* const __restrict__ input, const int insize, byt
       good = h_CLOG_2(csize, in, out);
     }
     /*##comp-encoder-end##*/
-        
+
     int offs = 0;
     if (chunkID > 0) {
       do {
@@ -131,6 +133,7 @@ static void h_encode(const byte* const __restrict__ input, const int insize, byt
   delete [] carry;
 }
 
+
 int main(int argc, char* argv [])
 {
   /*##print-beg##*/
@@ -138,8 +141,8 @@ int main(int argc, char* argv [])
   printf("Copyright 2024 Texas State University\n\n");
 
   // read input from file
-  if (argc < 3) {printf("USAGE: %s input_file_name compressed_file_name [performance_analysis(y)]\n\n", argv[0]);  exit(-1);}
-  FILE* const fin = fopen(argv[1], "rb");  
+  if (argc < 3) {printf("USAGE: %s input_file_name compressed_file_name [performance_analysis(y)]\n\n", argv[0]); return -1;}
+  FILE* const fin = fopen(argv[1], "rb");
   fseek(fin, 0, SEEK_END);
   const int fsize = ftell(fin);  assert(fsize > 0);
   byte* const input = new byte [fsize];
@@ -147,22 +150,22 @@ int main(int argc, char* argv [])
   const int insize = fread(input, 1, fsize, fin);  assert(insize == fsize);
   fclose(fin);
   printf("original size: %d bytes\n", insize);
- 
+
   // Check if the third argument is "y" to enable performance analysis
   char* perf_str = argv[3];
   bool perf = false;
   if (perf_str != nullptr && strcmp(perf_str, "y") == 0) {
     perf = true;
   } else if (perf_str != nullptr && strcmp(perf_str, "y") != 0) {
-    printf("Invalid performance analysis argument. Use 'y' or leave it empty.\n");
-    exit(-1);
+    fprintf(stderr, "ERROR: Invalid argument. Use 'y' or nothing.\n");
+    throw std::runtime_error("LC error");
   }
 
   // allocate CPU memory
   const int chunks = (insize + CS - 1) / CS;  // round up
   const int maxsize = 3 * sizeof(int) + chunks * sizeof(short) + chunks * CS;
   byte* const hencoded = new byte [maxsize];
-  int hencsize = 0; 
+  int hencsize = 0;
 
   // time CPU preprocessor encoding
   byte* hpreencdata = new byte [insize];
@@ -184,9 +187,9 @@ int main(int argc, char* argv [])
   h_encode(hpreencdata, hpreencsize, hencoded, hencsize);
   double hruntime = htimer.stop();
 
-  printf("encoded size: %d bytes\n", hencsize); 
+  printf("encoded size: %d bytes\n", hencsize);
   const float CR = (100.0 * hencsize) / insize;
-  printf("ratio: %6.2f%% %7.3fx\n", CR, 100.0 / CR);  
+  printf("ratio: %6.2f%% %7.3fx\n", CR, 100.0 / CR);
   if (perf) {
     printf("encoding time: %.6f s\n", hruntime);
     double hthroughput = insize * 0.000000001 / hruntime;
@@ -200,5 +203,5 @@ int main(int argc, char* argv [])
 
   delete [] input;
   delete [] hencoded;
-  return 0; 
+  return 0;
 }

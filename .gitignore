@@ -2,6 +2,7 @@ NonGitFiles/
 lc
 lc.cpp
 lc.cu
+lc.h
 LC.encoded
 LC.decoded
 compress

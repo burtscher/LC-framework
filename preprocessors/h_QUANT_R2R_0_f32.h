@@ -39,9 +39,9 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 
 static inline void h_QUANT_R2R_0_f32(int& size, byte*& data, const int paramc, const double paramv [])
 {
-  if (size % sizeof(float) != 0) {fprintf(stderr, "QUANT_R2R_0_f32: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(float)); exit(-1);}
+  if (size % sizeof(float) != 0) {fprintf(stderr, "QUANT_R2R_0_f32: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(float)); throw std::runtime_error("LC error");}
   const int len = size / sizeof(float);
-  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_R2R_0_f32(error_bound [, threshold])\n"); exit(-1);}
+  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_R2R_0_f32(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
   const float errorbound = paramv[0];
   const float threshold = (paramc == 2) ? paramv[1] : std::numeric_limits<float>::infinity();
 
@@ -62,8 +62,8 @@ static inline void h_QUANT_R2R_0_f32(int& size, byte*& data, const int paramc, c
 
   const float adj_eb = (maxf - minf) * errorbound;
   data_f[len] = adj_eb;
-  if (adj_eb < std::numeric_limits<float>::min()) {fprintf(stderr, "QUANT_R2R_0_f32: ERROR: error_bound must be at least %e, R2R error bound was calculated to be %e\n", std::numeric_limits<float>::min(), adj_eb); exit(-1);}  // minimum positive normalized value
-  if (threshold <= adj_eb) {fprintf(stderr, "QUANT_R2R_0_f32: ERROR: threshold must be larger than error_bound, R2R error bound was calculated to be %e\n", adj_eb); exit(-1);}
+  if (adj_eb < std::numeric_limits<float>::min()) {fprintf(stderr, "QUANT_R2R_0_f32: ERROR: error_bound must be at least %e, R2R error bound was calculated to be %e\n", std::numeric_limits<float>::min(), adj_eb); throw std::runtime_error("LC error");}  // minimum positive normalized value
+  if (threshold <= adj_eb) {fprintf(stderr, "QUANT_R2R_0_f32: ERROR: threshold must be larger than error_bound, R2R error bound was calculated to be %e\n", adj_eb); throw std::runtime_error("LC error");}
 
   const int mantissabits = 23;
   const int maxbin = 1 << (mantissabits - 1);  // leave 1 bit for sign
@@ -97,14 +97,14 @@ static inline void h_QUANT_R2R_0_f32(int& size, byte*& data, const int paramc, c
 
 static inline void h_iQUANT_R2R_0_f32(int& size, byte*& data, const int paramc, const double paramv [])
 {
-  if (size % sizeof(float) != 0) {fprintf(stderr, "QUANT_R2R_0_f32: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(float)); exit(-1);}
+  if (size % sizeof(float) != 0) {fprintf(stderr, "QUANT_R2R_0_f32: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(float)); throw std::runtime_error("LC error");}
   const int len = size / sizeof(float) - 1;
-  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_R2R_0_f32(error_bound [, threshold])\n"); exit(-1);}
+  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_R2R_0_f32(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
 
   float* const data_f = (float*)data;
   int* const data_i = (int*)data_f;
   const float errorbound = data_f[len];
-  if (errorbound < std::numeric_limits<float>::min()) {fprintf(stderr, "QUANT_R2R_0_f32: ERROR: error_bound must be at least %e\n", std::numeric_limits<float>::min()); exit(-1);}  // minimum positive normalized value
+  if (errorbound < std::numeric_limits<float>::min()) {fprintf(stderr, "QUANT_R2R_0_f32: ERROR: error_bound must be at least %e\n", std::numeric_limits<float>::min()); throw std::runtime_error("LC error");}  // minimum positive normalized value
 
   const int mantissabits = 23;
   const float eb2 = 2 * errorbound;

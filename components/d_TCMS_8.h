@@ -37,48 +37,17 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 */
 
 
+#include "include/d_TCMS.h"
+
+
 static __device__ inline bool d_TCMS_8(int& csize, byte in [CS], byte out [CS], byte temp [CS])
 {
-  using type = unsigned long long;
-  type* const in_t = (type*)in;
-  type* const out_t = (type*)out;
-  const int size = csize / sizeof(type);
-  const int tid = threadIdx.x;
-
-  // convert from twos-complement to magnitude-sign format
-  for (int i = tid; i < size; i += TPB) {
-    const type data = in_t[i];
-    const type s = ((std::make_signed_t<type>)data) >> (sizeof(type) * 8 - 1);
-    out_t[i] = (data << 1) ^ s;
-  }
-
-  // copy leftover bytes
-  if constexpr (sizeof(type) > 1) {
-    const int extra = csize % sizeof(type);
-    if (tid < extra) out[csize - extra + tid] = in[csize - extra + tid];
-  }
+  d_TCMS<unsigned long long>(csize, in, out, temp);
   return true;
 }
 
 
 static __device__ inline void d_iTCMS_8(int& csize, byte in [CS], byte out [CS], byte temp [CS])
 {
-  using type = unsigned long long;
-  type* const in_t = (type*)in;
-  type* const out_t = (type*)out;
-  const int size = csize / sizeof(type);
-  const int tid = threadIdx.x;
-
-  // convert from magnitude-sign to twos-complement format
-  for (int i = tid; i < size; i += TPB) {
-    const type data = in_t[i];
-    const type s = ((std::make_signed_t<type>)(data << (sizeof(type) * 8 - 1))) >> (sizeof(type) * 8 - 1);
-    out_t[i] = (data >> 1) ^ s;
-  }
-
-  // copy leftover bytes
-  if constexpr (sizeof(type) > 1) {
-    const int extra = csize % sizeof(type);
-    if (tid < extra) out[csize - extra + tid] = in[csize - extra + tid];
-  }
+  d_iTCMS<unsigned long long>(csize, in, out, temp);
 }

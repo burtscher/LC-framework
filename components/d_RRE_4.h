@@ -50,7 +50,7 @@ static __device__ inline bool d_RRE_4(int& csize, byte in [CS], byte out [CS], b
   const int bits = 8 * sizeof(type);
   assert(CS == 16384);
 
-  // zero out bitmap
+  // zero out end of bitmap
   int* const temp_w = (int*)temp;
   byte* const bitmap = (byte*)&temp_w[WS + 1];
   if (csize < CS) {

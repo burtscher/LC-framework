@@ -43,10 +43,10 @@ static void MAXR2R_f64(const int size, const byte* const __restrict__ recon, con
   using type_i = long long;
   assert(sizeof(type_f) == sizeof(type_i));
 
-  if ((size % sizeof(type_f)) != 0) {fprintf(stderr, "ERROR: MAXR2R_f64 requires data to be a multiple of %ld bytes long\n", sizeof(type_f)); exit(-1);}
-  if (paramc != 1) {fprintf(stderr, "ERROR: MAXR2R_f64 requires one parameter that specifies the maximum allowed relative-to-range error\n"); exit(-1);}
+  if ((size % sizeof(type_f)) != 0) {fprintf(stderr, "ERROR: MAXR2R_f64 requires data to be a multiple of %ld bytes long\n", sizeof(type_f)); throw std::runtime_error("LC error");}
+  if (paramc != 1) {fprintf(stderr, "ERROR: MAXR2R_f64 requires one parameter that specifies the maximum allowed relative-to-range error\n"); throw std::runtime_error("LC error");}
   const type_f errorbound = paramv[0];
-  if (errorbound <= 0) {fprintf(stderr, "ERROR: MAXR2R_f64 requires the maximum allowed relative-to-range error to be greater than zero\n"); exit(-1);}
+  if (errorbound <= 0) {fprintf(stderr, "ERROR: MAXR2R_f64 requires the maximum allowed relative-to-range error to be greater than zero\n"); throw std::runtime_error("LC error");}
 
   const type_f* const orig_f = (type_f*)orig;
   const type_f* const recon_f = (type_f*)recon;
@@ -67,7 +67,7 @@ static void MAXR2R_f64(const int size, const byte* const __restrict__ recon, con
       if (recon_f[i] != orig_f[i]) {
         if (!std::isnan(orig_f[i]) || !std::isnan(recon_f[i])) {  // at least one value isn't a NaN
           fprintf(stderr, "MAXR2R_f64 ERROR: adjusted error bound exceeded due to NaN or INF at position %d: value is '%.10f' vs '%.10f'\n\n", i, recon_f[i], orig_f[i]);
-          exit(-1);
+          throw std::runtime_error("LC error");
         }
       }
     } else {
@@ -75,7 +75,7 @@ static void MAXR2R_f64(const int size, const byte* const __restrict__ recon, con
       const type_f upper = orig_f[i] + adj_eb;
       if ((recon_f[i] < lower) || (recon_f[i] > upper) || (fabsf(orig_f[i] - recon_f[i]) > adj_eb)) {
         fprintf(stderr, "MAXR2R_f64 ERROR: adjusted error bound of %.10f exceeded at position %d: value is '%.10f' vs '%.10f' (diff is '%.10f')\n\n", adj_eb, i, recon_f[i], orig_f[i], fabsf(orig_f[i] - recon_f[i]));
-        exit(-1);
+        throw std::runtime_error("LC error");
       }
     }
   }

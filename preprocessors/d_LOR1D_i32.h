@@ -66,7 +66,7 @@ static inline void d_LOR1D_i32(int& size, byte*& data, const int paramc, const d
   // Check that size is correct
   if (size % sizeof(type) != 0) {
     fprintf(stderr, "ERROR: size %d is not evenly divisible by type size %ld\n", size, sizeof(type));
-    exit(-1);
+    throw std::runtime_error("LC error");
   }
   type* d_encoded;
   if (cudaSuccess != cudaMalloc((void **)&d_encoded, size)) fprintf(stderr, "CUDA ERROR: could not allocate d_encoded\n");
@@ -91,7 +91,7 @@ static inline void d_iLOR1D_i32(int& size, byte*& data, const int paramc, const 
   // Check that size is correct
   if (size % sizeof(type) != 0) {
     fprintf(stderr, "ERROR: size %d is not evenly divisible by type size %ld\n", size, sizeof(type));
-    exit(-1);
+    throw std::runtime_error("LC error");
   }
   type* d_decoded;
   if (cudaSuccess != cudaMalloc((void **)&d_decoded, size)) fprintf(stderr, "CUDA ERROR: could not allocate d_decoded\n");

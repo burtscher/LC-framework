@@ -135,7 +135,7 @@ for x in pre_list:
 # update include list
 with open("compressor-standalone.cpp", "r+") as f:
   contents = f.read()
-  m = re.search("##include-beg##[\s\S]*##include-end##", contents)
+  m = re.search(r"##include-beg##[\s\S]*##include-end##", contents)
   str_to_add = ''
   for c in pre_uni:
     str_to_add += "#include \"preprocessors/" + str(c) + ".h\"\n"
@@ -149,7 +149,7 @@ with open("compressor-standalone.cpp", "r+") as f:
 
 with open("decompressor-standalone.cpp", "r+") as f:
   contents = f.read()
-  m = re.search("##include-beg##[\s\S]*##include-end##", contents)
+  m = re.search(r"##include-beg##[\s\S]*##include-end##", contents)
   str_to_add = ''
   for c in pre_uni:
     str_to_add += "#include \"preprocessors/" + str(c) + ".h\"\n"
@@ -163,7 +163,7 @@ with open("decompressor-standalone.cpp", "r+") as f:
 # update print
 with open("compressor-standalone.cpp", "r+") as f:
   contents = f.read()
-  m = re.search("##print-beg##[\s\S]*##print-end##", contents)
+  m = re.search(r"##print-beg##[\s\S]*##print-end##", contents)
   str_to_add = '  printf(\"CPU LC 1.2 Algorithm:'
   for c in pre_uni:
       str_to_add += " " + str(c[2:])
@@ -178,7 +178,7 @@ with open("compressor-standalone.cpp", "r+") as f:
 
 with open("decompressor-standalone.cpp", "r+") as f:
   contents = f.read()
-  m = re.search("##print-beg##[\s\S]*##print-end##", contents)
+  m = re.search(r"##print-beg##[\s\S]*##print-end##", contents)
   str_to_add = '  printf(\"CPU LC 1.2 Algorithm:'
   for c in pre_uni:
       str_to_add += " " + str(c[2:])
@@ -193,7 +193,7 @@ with open("decompressor-standalone.cpp", "r+") as f:
 # update comp encoder
 with open("compressor-standalone.cpp", "r+") as f:
   contents = f.read()
-  m = re.search("##comp-encoder-beg##[\s\S]*##comp-encoder-end##", contents)
+  m = re.search(r"##comp-encoder-beg##[\s\S]*##comp-encoder-end##", contents)
   str_to_add = ''
   for c in comp_list:
     c = c[2:]
@@ -206,7 +206,7 @@ with open("compressor-standalone.cpp", "r+") as f:
 # update pre encoder
 with open("compressor-standalone.cpp", "r+") as f:
     contents = f.read()
-    m = re.search("##pre-encoder-beg##[\s\S]*##pre-encoder-end##", contents)
+    m = re.search(r"##pre-encoder-beg##[\s\S]*##pre-encoder-end##", contents)
     str_to_add = ''
     first_iteration = True
     for d in preprocessor_params.keys():
@@ -232,7 +232,7 @@ comp_list.reverse()
 # update pre decoder
 with open("decompressor-standalone.cpp", "r+") as f:
     contents = f.read()
-    m = re.search("##pre-decoder-beg##[\s\S]*##pre-decoder-end##", contents)
+    m = re.search(r"##pre-decoder-beg##[\s\S]*##pre-decoder-end##", contents)
     str_to_add = ''
     first_iteration = True
     for d in reversed(preprocessor_params.keys()):
@@ -256,7 +256,7 @@ with open("decompressor-standalone.cpp", "r+") as f:
 # update comp decoder
 with open("decompressor-standalone.cpp", "r+") as f:
   contents = f.read()
-  m = re.search("##comp-decoder-beg##[\s\S]*##comp-decoder-end##", contents)
+  m = re.search(r"##comp-decoder-beg##[\s\S]*##comp-decoder-end##", contents)
   str_to_add = ''
   for c in comp_list:
     c = c[2:]
@@ -283,7 +283,7 @@ cpp_code = [line for line in cpp_code if not re.match(pattern, line.strip())]
 with open(dec_file_path, "w") as file:
     file.write("".join(cpp_code))
 
-print("Compile encoder with:\ng++ -O3 -march=native -fopenmp -I. -std=c++17 -o compress compressor-standalone.cpp")
+print("Compile encoder with:\ng++ -O3 -march=native -fopenmp -mno-fma -I. -std=c++17 -o compress compressor-standalone.cpp")
 print("\nRun encoder with:\n./compress input_file_name compressed_file_name [y]")
-print("\nCompile decoder with:\ng++ -O3 -march=native -fopenmp -I. -std=c++17 -o decompress decompressor-standalone.cpp")
+print("\nCompile decoder with:\ng++ -O3 -march=native -fopenmp -mno-fma -I. -std=c++17 -o decompress decompressor-standalone.cpp")
 print("\nRun decoder with:\n./decompress compressed_file_name decompressed_file_name [y]\n")

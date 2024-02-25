@@ -49,7 +49,7 @@ static inline bool h_RRE_4(int& csize, byte in [CS], byte out [CS])
   const int num = (2048 + 256 + 32 + 4) / sizeof(type);
   assert(CS == 16384);
 
-  // zero out bitmap
+  // zero out end of bitmap
   byte bitmap [num];
   if (csize < CS) {
     memset(&bitmap[csize / bits], 0, CS / bits - csize / bits);

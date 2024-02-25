@@ -37,11 +37,11 @@ If, instead, you want to run LC on the GPU, generate the framework as follows:
 
 In either case, run the printed command to compile the generated code. For the CPU, use:
 
-    g++ -O3 -march=native -fopenmp -DUSE_CPU -I. -std=c++17 -o lc lc.cpp
+    g++ -O3 -march=native -fopenmp -mno-fma -DUSE_CPU -I. -std=c++17 -o lc lc.cpp
 
 For the GPU, use:
 
-    nvcc -O3 -arch=sm_70 -DUSE_GPU -Xcompiler "-O3 -march=native -fopenmp" -I. -o lc lc.cu
+    nvcc -O3 -arch=sm_70 -fmad=false -DUSE_GPU -Xcompiler "-O3 -march=native -fopenmp -mno-fma" -I. -o lc lc.cu
 
 You may have to adjust these commands and flags to your system and compiler. For instance, the *sm_70* should be changed to match your GPU's compute capability.
 
@@ -159,13 +159,13 @@ To generate the GPU version, run:
 
 In either case, run the printed commands to compile the generated code. For the CPU, use:
 
-    g++ -O3 -march=native -fopenmp -I. -std=c++17 -o compress compressor-standalone.cpp
-    g++ -O3 -march=native -fopenmp -I. -std=c++17 -o decompress decompressor-standalone.cpp
+    g++ -O3 -march=native -fopenmp -mno-fma -I. -std=c++17 -o compress compressor-standalone.cpp
+    g++ -O3 -march=native -fopenmp -mno-fma -I. -std=c++17 -o decompress decompressor-standalone.cpp
 
 For the GPU, use:
 
-    nvcc -O3 -arch=sm_70 -DUSE_GPU -Xcompiler "-march=native -fopenmp" -I. -o compress compressor-standalone.cu
-    nvcc -O3 -arch=sm_70 -DUSE_GPU -Xcompiler "-march=native -fopenmp" -I. -o decompress decompressor-standalone.cu
+    nvcc -O3 -arch=sm_70 -fmad=false -Xcompiler "-O3 -march=native -fopenmp -mno-fma" -I. -o compress compressor-standalone.cu
+    nvcc -O3 -arch=sm_70 -fmad=false -Xcompiler "-O3 -march=native -fopenmp -mno-fma" -I. -o decompress decompressor-standalone.cu
 
 You may have to adjust these commands and flags to your system and compiler. For instance, the *sm_70* should be changed to match your GPU's compute capability.
 

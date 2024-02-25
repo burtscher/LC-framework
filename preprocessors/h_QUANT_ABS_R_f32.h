@@ -48,13 +48,13 @@ static unsigned int h_QUANT_ABS_R_f32_hash(unsigned int val)
 
 static inline void h_QUANT_ABS_R_f32(int& size, byte*& data, const int paramc, const double paramv [])
 {
-  if (size % sizeof(float) != 0) {fprintf(stderr, "QUANT_ABS_R_f32: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(float)); exit(-1);}
+  if (size % sizeof(float) != 0) {fprintf(stderr, "QUANT_ABS_R_f32: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(float)); throw std::runtime_error("LC error");}
   const int len = size / sizeof(float);
-  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_ABS_R_f32(error_bound [, threshold])\n"); exit(-1);}
+  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_ABS_R_f32(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
   const float errorbound = paramv[0];
   const float threshold = (paramc == 2) ? paramv[1] : std::numeric_limits<float>::infinity();
-  if (errorbound < std::numeric_limits<float>::min()) {fprintf(stderr, "QUANT_ABS_R_f32: ERROR: error_bound must be at least %e\n", std::numeric_limits<float>::min()); exit(-1);}  // minimum positive normalized value
-  if (threshold <= errorbound) {fprintf(stderr, "QUANT_ABS_R_f32: ERROR: threshold must be larger than error_bound\n"); exit(-1);}
+  if (errorbound < std::numeric_limits<float>::min()) {fprintf(stderr, "QUANT_ABS_R_f32: ERROR: error_bound must be at least %e\n", std::numeric_limits<float>::min()); throw std::runtime_error("LC error");}  // minimum positive normalized value
+  if (threshold <= errorbound) {fprintf(stderr, "QUANT_ABS_R_f32: ERROR: threshold must be larger than error_bound\n"); throw std::runtime_error("LC error");}
 
   float* const data_f = (float*)data;
   int* const data_i = (int*)data;
@@ -71,8 +71,9 @@ static inline void h_QUANT_ABS_R_f32(int& size, byte*& data, const int paramc, c
     const float orig_f = data_f[i];
     const float scaled = orig_f * inv_eb;
     const int bin = (int)roundf(scaled);
-    const float rnd = inv_mask * (h_QUANT_ABS_R_f32_hash(i + len) & mask) - 0.5f;  // random noise
-    const float recon = (bin + rnd) * errorbound;
+    const float rnd = inv_mask * (h_QUANT_ABS_R_f32_hash(i + len) & mask);  // random noise
+    const float temp = (bin - 0.5f) + rnd;
+    const float recon = temp * errorbound;
 
     if ((bin >= maxbin) || (bin <= -maxbin) || (fabsf(orig_f) >= threshold) || (recon < orig_f - errorbound) || (recon > orig_f + errorbound) || (fabsf(orig_f - recon) > errorbound) || (orig_f != orig_f)) {  // last check is to handle NaNs
       count++;  // informal only
@@ -88,11 +89,11 @@ static inline void h_QUANT_ABS_R_f32(int& size, byte*& data, const int paramc, c
 
 static inline void h_iQUANT_ABS_R_f32(int& size, byte*& data, const int paramc, const double paramv [])
 {
-  if (size % sizeof(float) != 0) {fprintf(stderr, "QUANT_ABS_R_f32: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(float)); exit(-1);}
+  if (size % sizeof(float) != 0) {fprintf(stderr, "QUANT_ABS_R_f32: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(float)); throw std::runtime_error("LC error");}
   const int len = size / sizeof(float);
-  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_ABS_R_f32(error_bound [, threshold])\n"); exit(-1);}
+  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_ABS_R_f32(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
   const float errorbound = paramv[0];
-  if (errorbound < std::numeric_limits<float>::min()) {fprintf(stderr, "QUANT_ABS_R_f32: ERROR: error_bound must be at least %e\n", std::numeric_limits<float>::min()); exit(-1);}  // minimum positive normalized value
+  if (errorbound < std::numeric_limits<float>::min()) {fprintf(stderr, "QUANT_ABS_R_f32: ERROR: error_bound must be at least %e\n", std::numeric_limits<float>::min()); throw std::runtime_error("LC error");}  // minimum positive normalized value
 
   float* const data_f = (float*)data;
   int* const data_i = (int*)data;
@@ -106,8 +107,9 @@ static inline void h_iQUANT_ABS_R_f32(int& size, byte*& data, const int paramc, 
     int bin = data_i[i];
     if ((0 <= bin) && (bin < (1 << mantissabits))) {  // is encoded value
       bin = (bin >> 1) ^ (((bin << 31) >> 31));  // TCMS decoding
-      const float rnd = inv_mask * (h_QUANT_ABS_R_f32_hash(i + len) & mask) - 0.5f;  // random noise
-      data_f[i] = (bin + rnd) * errorbound;
+      const float rnd = inv_mask * (h_QUANT_ABS_R_f32_hash(i + len) & mask);  // random noise
+      const float temp = (bin - 0.5f) + rnd;
+      data_f[i] = temp * errorbound;
     }
   }
 }

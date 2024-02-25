@@ -37,49 +37,17 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 */
 
 
+#include "include/h_TCMS.h"
+
+
 static inline bool h_TCMS_2(int& csize, byte in [CS], byte out [CS])
 {
-  using type = unsigned short;
-  type* const in_t = (type*)in;
-  type* const out_t = (type*)out;
-  const int size = csize / sizeof(type);
-
-  // convert from twos-complement to magnitude-sign format
-  for (int i = 0; i < size; i++) {
-    const type data = in_t[i];
-    const type s = ((std::make_signed_t<type>)data) >> (sizeof(type) * 8 - 1);
-    out_t[i] = (data << 1) ^ s;
-  }
-
-  // copy leftover bytes
-  if constexpr (sizeof(type) > 1) {
-    const int extra = csize % sizeof(type);
-    for (int i = 0; i < extra; i++) {
-      out[csize - extra + i] = in[csize - extra + i];
-    }
-  }
+  h_TCMS<unsigned short>(csize, in, out);
   return true;
 }
 
+
 static inline void h_iTCMS_2(int& csize, byte in [CS], byte out [CS])
 {
-  using type = unsigned short;
-  type* const in_t = (type*)in;
-  type* const out_t = (type*)out;
-  const int size = csize / sizeof(type);
-
-  // convert from magnitude-sign to twos-complement format
-  for (int i = 0; i < size; i++) {
-    const type data = in_t[i];
-    const type s = ((std::make_signed_t<type>)(data << (sizeof(type) * 8 - 1))) >> (sizeof(type) * 8 - 1);
-    out_t[i] = (data >> 1) ^ s;
-  }
-
-  // copy leftover bytes
-  if constexpr(sizeof(type) > 1) {
-    const int extra = csize % sizeof(type);
-    for (int i = 0; i < extra; i++) {
-      out[csize - extra + i] = in[csize - extra + i];
-    }
-  }
+  h_iTCMS<unsigned short>(csize, in, out);
 }

@@ -50,11 +50,13 @@ import argparse
 parser = argparse.ArgumentParser("lc")
 parser.add_argument("--output_dir", default=".")
 parser.add_argument("--verbose", action="store_true")
-parser.add_argument("--base_file", default="framework.cu")
+parser.add_argument("--base_file", default="framework.h")
+parser.add_argument("--main_file", default="framework.cu")
 args = parser.parse_args()
 
 # generate lc framework
-shutil.copyfile(args.base_file, args.output_dir + "/lc.cpp")
+shutil.copyfile(args.main_file, args.output_dir + "/lc.cpp")
+shutil.copyfile(args.base_file, args.output_dir + "/lc.h")
 for i in ["/components/include", "/preprocessors/include", "/verifiers/include"]:
     os.makedirs(args.output_dir + i, exist_ok=True)
 
@@ -87,7 +89,7 @@ def update_gpu_components(filename, comps):
       f.write("#include \"../" + str(c) + ".h\"\n")
     f.write("\n#endif\n")
 
-#find components CPU
+# find components CPU
 cfiles = next(os.walk('./components'))[2]
 cpucomps = []
 for f in cfiles:
@@ -118,7 +120,7 @@ for f in cfiles:
 if args.verbose:
     print("\ncpupreprocess \n",', '.join(cpupreprocess), file=stderr)
 
-#update preprocessor enum.h
+# update preprocessor enum.h
 update_enum(args.output_dir + '/preprocessors/include/CPUpreprocessors.h', cpupreprocess, 'CPUpreprocessor')
 
 # update CPUpreprocessors.h
@@ -139,11 +141,11 @@ update_enum(args.output_dir + '/verifiers/include/verifiers.h', cpuverifier, 'VE
 # update verifiers.h
 update_cpu_components(args.output_dir + '/verifiers/include/verifiers.h', cpuverifier, "verifiers")
 
-file = args.output_dir + "/lc.cpp"
+file = args.output_dir + "/lc.h"
 # update switch host encode
 with open(file, "r+") as f:
   contents = f.read()
-  m = re.search("##switch-host-encode-beg##[\s\S]*##switch-host-encode-end##", contents)
+  m = re.search(r"##switch-host-encode-beg##[\s\S]*##switch-host-encode-end##", contents)
   str_to_add = ''
   for c in cpucomps:
     c = c[2:]
@@ -156,7 +158,7 @@ with open(file, "r+") as f:
 # update switch host decode
 with open(file, "r+") as f:
   contents = f.read()
-  m = re.search("##switch-host-decode-beg##[\s\S]*##switch-host-decode-end##", contents)
+  m = re.search(r"##switch-host-decode-beg##[\s\S]*##switch-host-decode-end##", contents)
   str_to_add = ''
   for c in cpucomps:
     c = c[2:]
@@ -169,7 +171,7 @@ with open(file, "r+") as f:
 # update switch pipeline
 with open(file, "r+") as f:
   contents = f.read()
-  m = re.search("##switch-pipeline-beg##[\s\S]*##switch-pipeline-end##", contents)
+  m = re.search(r"##switch-pipeline-beg##[\s\S]*##switch-pipeline-end##", contents)
   str_to_add = ''
   for c in cpucomps:
     c = c[2:]
@@ -179,10 +181,10 @@ with open(file, "r+") as f:
   f.truncate()
   f.write(contents)
 
-#update switch verify
+# update switch verify
 with open(file, "r+") as f:
   contents = f.read()
-  m = re.search("##switch-verify-beg##[\s\S]*##switch-verify-end##", contents)
+  m = re.search(r"##switch-verify-beg##[\s\S]*##switch-verify-end##", contents)
   str_to_add = ''
   for c in cpuverifier:
     c = c[2:]
@@ -192,10 +194,10 @@ with open(file, "r+") as f:
   f.truncate()
   f.write(contents)
 
-#update switch host preprocess encode
+# update switch host preprocess encode
 with open(file, "r+") as f:
   contents = f.read()
-  m = re.search("##switch-host-preprocess-encode-beg##[\s\S]*##switch-host-preprocess-encode-end##", contents)
+  m = re.search(r"##switch-host-preprocess-encode-beg##[\s\S]*##switch-host-preprocess-encode-end##", contents)
   str_to_add = ''
   for c in cpupreprocess:
     c = c[2:]
@@ -205,10 +207,10 @@ with open(file, "r+") as f:
   f.truncate()
   f.write(contents)
 
-#update switch host preprocess decode
+# update switch host preprocess decode
 with open(file, "r+") as f:
   contents = f.read()
-  m = re.search("##switch-host-preprocess-decode-beg##[\s\S]*##switch-host-preprocess-decode-end##", contents)
+  m = re.search(r"##switch-host-preprocess-decode-beg##[\s\S]*##switch-host-preprocess-decode-end##", contents)
   str_to_add = ''
   for c in cpupreprocess:
     c = c[2:]
@@ -221,7 +223,7 @@ with open(file, "r+") as f:
 # update enum map
 with open(file, "r+") as f:
     contents = f.read()
-    m = re.search("##component-map-beg##[\s\S]*##component-map-end##", contents)
+    m = re.search(r"##component-map-beg##[\s\S]*##component-map-end##", contents)
     str_to_add = ''
     i = 0
     for c in cpucomps:
@@ -233,11 +235,10 @@ with open(file, "r+") as f:
     f.truncate()
     f.write(contents)
 
-
 # update preprocessor map
 with open(file, "r+") as f:
     contents = f.read()
-    m = re.search("##preprocessor-map-beg##[\s\S]*##preprocessor-map-end##", contents)
+    m = re.search(r"##preprocessor-map-beg##[\s\S]*##preprocessor-map-end##", contents)
     str_to_add = ''
     for c in cpupreprocess:
         c = c[2:]
@@ -250,7 +251,7 @@ with open(file, "r+") as f:
 # update verifier map
 with open(file, "r+") as f:
     contents = f.read()
-    m = re.search("##verifier-map-beg##[\s\S]*##verifier-map-end##", contents)
+    m = re.search(r"##verifier-map-beg##[\s\S]*##verifier-map-end##", contents)
     str_to_add = ''
     for c in cpuverifier:
         c = c[2:]
@@ -260,6 +261,5 @@ with open(file, "r+") as f:
     f.truncate()
     f.write(contents)
 
-print("\nCompile with\ng++ -O3 -march=native -fopenmp -DUSE_CPU -I. -std=c++17 -o lc lc.cpp\n")
+print("\nCompile with\ng++ -O3 -march=native -fopenmp -mno-fma -DUSE_CPU -I. -std=c++17 -o lc lc.cpp\n")
 print("Run the following command to see the usage message\n./lc")
-

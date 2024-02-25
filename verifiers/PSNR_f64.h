@@ -41,8 +41,8 @@ static void PSNR_f64(const int size, const byte* const __restrict__ recon, const
 {
   using type = double;
 
-  if ((size % sizeof(type)) != 0) {fprintf(stderr, "ERROR: PSNR_f64 requires data to be a multiple of %ld bytes long\n", sizeof(type)); exit(-1);}
-  if (paramc != 1) {fprintf(stderr, "ERROR: PSNR_f64 requires one parameter that specifies the minimum allowed peak signal to noise ratio\n"); exit(-1);}
+  if ((size % sizeof(type)) != 0) {fprintf(stderr, "ERROR: PSNR_f64 requires data to be a multiple of %ld bytes long\n", sizeof(type)); throw std::runtime_error("LC error");}
+  if (paramc != 1) {fprintf(stderr, "ERROR: PSNR_f64 requires one parameter that specifies the minimum allowed peak signal to noise ratio\n"); throw std::runtime_error("LC error");}
 
   const type* const orig_t = (type*)orig;
   const type* const recon_t = (type*)recon;
@@ -62,7 +62,7 @@ static void PSNR_f64(const int size, const byte* const __restrict__ recon, const
 
   if (mse != 0) {
     type psnr = (inmax == inmin) ? -std::numeric_limits<type>::infinity() : (20 * log10(inmax - inmin) - 10 * log10(mse));
-    if (psnr < errorbound) {fprintf(stderr, "PSNR_f64 ERROR: decoded data's PSNR of %f does not meet minimum allowed value of %f\n\n", psnr, errorbound); exit(-1);}
+    if (psnr < errorbound) {fprintf(stderr, "PSNR_f64 ERROR: decoded data's PSNR of %f does not meet minimum allowed value of %f\n\n", psnr, errorbound); throw std::runtime_error("LC error");}
   }
 
   printf("PSNR_f64 verification passed\n");
