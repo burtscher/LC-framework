@@ -53,7 +53,7 @@ import argparse
 import datetime
 import sys
 import os
-from typing import Tuple
+import typing
 
 class Algorithm:
     """ A class to represent an individual in the population, an algorithm
@@ -62,21 +62,22 @@ class Algorithm:
 
     next_id = 0
 
-    def __init__(self, stages: int, pipeline_d: dict[str, float], components=None) -> None:
+    def __init__(self, stages: int, pipeline_d: typing.Dict[str, float], components=None, ccomponents=None) -> None:
         Algorithm.next_id += 1
         self.myid = Algorithm.next_id
         self.p1id = -1
         self.p2id = -1
         self.stages = stages
-        if components:
-            self.generate_random_algo(components)
+        if components and ccomponents:
+            self.generate_random_algo(components, ccomponents)
         self.pipeline_d = pipeline_d
 
-    def generate_random_algo(self, components) -> None:
-        self.algo = [random.choice(components) for _ in range(self.stages)]
+    def generate_random_algo(self, components, ccomponents) -> None:
+        self.algo = [random.choice(components) for _ in range(self.stages - 1)]
+        self.algo.append(random.choice(ccomponents))
         self.algo_str = ' '.join(self.algo)
 
-    def update_algo(self, algo: list[str]) -> None:
+    def update_algo(self, algo: typing.List[str]) -> None:
         self.algo = algo
         self.update_algo_str()
 
@@ -161,7 +162,7 @@ class Logger:
             f.write(f'Mutation rate: {self.args.mutation_rate}\n')
 
     def write_population(self, generation: int,
-                         population: list[Algorithm]) -> None:
+                         population: typing.List[Algorithm]) -> None:
         path = os.path.join("ga_logs", str(self.id),
                             "generations", f'{generation:04}.gen')
 
@@ -204,7 +205,7 @@ class Runner:
                 print(f'!Logger initialized')
 
         # `lc` variables
-        self.components = component_list()
+        self.components, self.components_compress = component_list()
         self.algo_stages = self.args.stages
 
         # genetic algorithm variables
@@ -220,7 +221,7 @@ class Runner:
         self.pipeline_d: dict[str, float]
         self.pipeline_d = {}
         
-        self.popul = [Algorithm(self.algo_stages, self.pipeline_d, components=self.components)
+        self.popul = [Algorithm(self.algo_stages, self.pipeline_d, components=self.components, ccomponents=self.components_compress)
                       for _ in range(self.population_size)]
         self.ratio_history = []
 
@@ -322,7 +323,10 @@ class Runner:
             for p_i in range(len(self.popul) - 1):
                 for c_i in range(self.popul[p_i].stages):
                     if random.random() < mu:
-                        self.popul[p_i].algo[c_i] = random.choice(self.components)
+                        if c_i == (self.popul[p_i].stages - 1):
+                            self.popul[p_i].algo[c_i] = random.choice(self.components_compress)
+                        else:
+                            self.popul[p_i].algo[c_i] = random.choice(self.components)
                         self.popul[p_i].update_algo_str()
 
                         if self.args.logger:
@@ -404,12 +408,12 @@ class Runner:
             member.pipeline_d[member.algo_str] = member.comp_ratio
 
 
-def roulette_wheel_selection(pop: list[Algorithm], weights: list[float]) -> Tuple[Algorithm, Algorithm]:
+def roulette_wheel_selection(pop: typing.List[Algorithm], weights: typing.List[float]) -> typing.Tuple[Algorithm, Algorithm]:
     parents = random.choices(pop, weights=weights, k=2)
     return (parents[0], parents[1])
 
 
-def tournament_selection(pop: list[Algorithm], k: int) -> Tuple[Algorithm, Algorithm]:
+def tournament_selection(pop: typing.List[Algorithm], k: int) -> typing.Tuple[Algorithm, Algorithm]:
     picks = random.sample(pop, k=k)
     picks.sort(reverse=True, key=get_comp_ratio)
     p1 = picks[0]
@@ -446,16 +450,23 @@ def parse_comp_ratio(output, err) -> float:
     return comp_ratio
 
 
-def component_list() -> list[str]:
+def compress_only(c: str):
+    return c.startswith("R") or c.startswith("C") or c.startswith("H")
+
+
+def component_list() -> typing.Tuple[typing.List[str], typing.List[str]]:
     res = subprocess.run('./lc', shell=True, text=True, capture_output=True)
     (_, _, components) = res.stdout.partition("available components:")
     components = components.splitlines()
     components = components[1]
     components = components.split()
-    return components
+    components.remove("NUL")
+    components_compress = list(filter(compress_only, components))
+
+    return (components, components_compress)
 
 
-def single_point_crossover(p1: Algorithm, p2: Algorithm) -> Tuple[Algorithm, Algorithm]:
+def single_point_crossover(p1: Algorithm, p2: Algorithm) -> typing.Tuple[Algorithm, Algorithm]:
     crossover_point = random.randrange(p1.stages)
     c1 = Algorithm(p1.stages, p1.pipeline_d)
     c2 = Algorithm(p1.stages, p1.pipeline_d)
@@ -474,7 +485,7 @@ def single_point_crossover(p1: Algorithm, p2: Algorithm) -> Tuple[Algorithm, Alg
     return (c1, c2)
 
 
-def masked_crossover(p1: Algorithm, p2: Algorithm) -> Tuple[Algorithm, Algorithm]:
+def masked_crossover(p1: Algorithm, p2: Algorithm) -> typing.Tuple[Algorithm, Algorithm]:
     mask = get_bitmask_str(p1.stages)
     c1 = Algorithm(p1.stages, p1.pipeline_d)
     c2 = Algorithm(p1.stages, p1.pipeline_d)
@@ -511,13 +522,13 @@ def get_bitmask_str(k) -> str:
     return mask_str
 
 
-def print_population(population: list[Algorithm]) -> None:
+def print_population(population: typing.List[Algorithm]) -> None:
     print(f'Compression Ratio\tComponent List')
     for p in population:
         print(f'{p.comp_ratio}\t\t\t{p.algo_str}')
 
 
-def print_reduced_population(population: list[Algorithm]) -> None:
+def print_reduced_population(population: typing.List[Algorithm]) -> None:
     if len(population) < 6:
         print_population(population)
         return
