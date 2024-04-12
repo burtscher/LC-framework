@@ -37,54 +37,16 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 */
 
 
+#include "include/h_DIFFMS.h"
+
+
 static inline bool h_DIFFMS_4(int& csize, byte in [CS], byte out [CS])
 {
-  using type = unsigned int;
-  type* const in_t = (type*)in;  // type cast
-  type* const out_t = (type*)out;
-  const int size = csize / sizeof(type);  // words in chunk (rounded down)
-
-  // compute difference sequence plus TCMS
-  type prev = 0;
-  for (int i = 0; i < size; i++) {
-    const type val = in_t[i];
-    const type data = val - prev;
-    prev = val;
-    out_t[i] = (data << 1) ^ ((std::make_signed_t<type>)data) >> (sizeof(type) * 8 - 1);
-  }
-
-  // copy leftover bytes
-  if constexpr (sizeof(type) > 1) {
-    const int extra = csize % sizeof(type);
-    for (int i = 0; i < extra; i++) {
-      out[csize - extra + i] = in[csize - extra + i];
-    }
-  }
-  return true;
+  return h_DIFFMS<unsigned int>(csize, in, out);
 }
 
 
 static inline void h_iDIFFMS_4(int& csize, byte in [CS], byte out [CS])
 {
-  using type = unsigned int;
-  type* const in_t = (type*)in;  // type cast
-  type* const out_t = (type*)out;
-  const int size = csize / sizeof(type);  // words in chunk (rounded down)
-
-  // compute prefix sum
-  type sum = 0;
-  for (int i = 0; i < size; i++) {
-    const type data = in_t[i];
-    const type val = (data >> 1) ^ ((std::make_signed_t<type>)(data << (sizeof(type) * 8 - 1))) >> (sizeof(type) * 8 - 1);
-    sum += val;
-    out_t[i] = sum;
-  }
-
-  // copy leftover byte
-  if constexpr (sizeof(type) > 1) {
-    const int extra = csize % sizeof(type);
-    for (int i = 0; i < extra; i++) {
-      out[csize - extra + i] = in[csize - extra + i];
-    }
-  }
+  h_iDIFFMS<unsigned int>(csize, in, out);
 }

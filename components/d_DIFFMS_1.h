@@ -37,62 +37,16 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 */
 
 
+#include "include/d_DIFFMS.h"
+
+
 static __device__ inline bool d_DIFFMS_1(int& csize, byte in [CS], byte out [CS], byte temp [CS])
 {
-  using type = byte;
-  type* const in_t = (type*)in;
-  type* const out_t = (type*)out;
-  const int size = csize / sizeof(type);  // words in chunk (rounded down)
-  const int tid = threadIdx.x;
-
-  // compute difference sequence
-  for (int i = tid; i < size; i += TPB) {
-    const type prev = (i == 0) ? 0 : in_t[i - 1];
-    const type val = in_t[i];
-    const type data = val - prev;
-    out_t[i] = (data << 1) ^ ((std::make_signed_t<type>)data) >> (sizeof(type) * 8 - 1);
-  }
-
-  // copy leftover bytes at end
-  if constexpr (sizeof(type) > 1) {
-    const int extra = csize % sizeof(type);
-    if (tid < extra) out[csize - extra + tid] = in[csize - extra + tid];
-  }
-  return true;
+  return d_DIFFMS<byte>(csize, in, out, temp);
 }
 
 
 static __device__ inline void d_iDIFFMS_1(int& csize, byte in [CS], byte out [CS], byte temp [CS])
 {
-  using type = byte;
-  type* const in_t = (type*)in;
-  type* const out_t = (type*)out;
-  const int size = csize / sizeof(type);  // words in chunk (rounded down)
-  const int tid = threadIdx.x;
-  const int beg = tid * size / TPB;
-  const int end = (tid + 1) * size / TPB;
-
-  // compute local sums
-  type sum = 0;
-  for (int i = beg; i < end; i++) {
-    const type data = in_t[i];
-    const type val = (data >> 1) ^ ((std::make_signed_t<type>)(data << (sizeof(type) * 8 - 1))) >> (sizeof(type) * 8 - 1);
-    sum += val;
-    in_t[i] = val;
-  }
-
-  // compute prefix sum
-  sum = block_prefix_sum(sum, temp);  // includes barrier
-
-  // compute intermediate values
-  for (int i = end - 1; i >= beg; i--) {
-    out_t[i] = sum;
-    sum -= in_t[i];
-  }
-
-  // copy leftover bytes at end
-  if constexpr (sizeof(type) > 1) {
-    const int extra = csize % sizeof(type);
-    if (tid < extra) out[csize - extra + tid] = in[csize - extra + tid];
-  }
+  d_iDIFFMS<byte>(csize, in, out, temp);
 }

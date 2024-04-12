@@ -323,13 +323,25 @@ int main(int argc, char* argv [])
   int dpreencsize = insize;
 
   if (perf) {
-    // warm up
-    int* d_fullcarry_dummy;
-    cudaMalloc((void **)&d_fullcarry_dummy, chunks * sizeof(int));
+    /*##comp-warm-beg##*/
+    int* d_fullcarry;
+    cudaMalloc((void **)&d_fullcarry, chunks * sizeof(int));
     d_reset<<<1, 1>>>();
-    cudaMemset(d_fullcarry_dummy, 0, chunks * sizeof(byte));
-    d_encode<<<blocks, TPB>>>(dpreencdata, dpreencsize, d_encoded, d_encsize, d_fullcarry_dummy);
-    cudaFree(d_fullcarry_dummy);
+    cudaMemset(d_fullcarry, 0, chunks * sizeof(int));
+    d_encode<<<blocks, TPB>>>(dpreencdata, dpreencsize, d_encoded, d_encsize, d_fullcarry);
+    cudaFree(d_fullcarry);
+    cudaDeviceSynchronize();
+    CheckCuda(__LINE__);
+    /*##comp-warm-end##*/
+    /*##pre-beg##*/
+    byte* d_preencdata;
+    cudaMalloc((void **)&d_preencdata, insize);
+    cudaMemcpy(d_preencdata, d_input, insize, cudaMemcpyDeviceToDevice);
+    int dpreencsize = insize;
+    /*##pre-warm-beg##*/
+    /*##pre-warm-end##*/
+    cudaFree(d_preencdata);
+    /*##pre-end##*/
   }
 
   GPUTimer dtimer;
@@ -374,7 +386,7 @@ int main(int argc, char* argv [])
   CheckCuda(__LINE__);
 
   // clean up
-  cudaFreeHost(input);
+  delete [] input;
   cudaFreeHost(dencoded);
   return 0;
 }

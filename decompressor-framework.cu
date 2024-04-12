@@ -301,7 +301,6 @@ int main(int argc, char* argv [])
   double runtime = dtimer.stop();
 
   // get decoded GPU result
-  cudaMemcpy(&ddecsize, d_decsize, sizeof(int), cudaMemcpyDeviceToHost);
   cudaMemcpy(ddecoded, d_decoded, ddecsize, cudaMemcpyDeviceToHost);
   printf("decoded size: %d bytes\n", ddecsize);
   CheckCuda(__LINE__);

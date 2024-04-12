@@ -37,112 +37,16 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 */
 
 
+#include "include/h_RLE.h"
+
+
 static inline bool h_RLE_8(int& csize, byte in [CS], byte out [CS])
 {
-  using type = long long;
-  type* const in_t = (type*)in;
-  type* const out_t = (type*)out;
-  byte counts [CS / sizeof(type)];  // upper bound on size
-  const int elems = csize / sizeof(type);
-  const int extra = csize % sizeof(type);
-  int cpos = 0;  // count position
-  int vpos = 0;  // value position
-
-  // look for repeating and non-repeating values
-  type prev = ~in_t[0];
-  int repeat = 0;
-  int nrepeat = 0;
-  for (int i = 0; i < elems; i++) {
-    const type curr = in_t[i];
-    if (prev != curr) {  // not repeating
-      prev = curr;
-      out_t[vpos++] = curr;  // output non-repeating value
-      nrepeat++;
-      // output repeat counts
-      while (repeat > 0) {
-        const int rep = std::min(128, repeat);
-        counts[cpos++] = 0x80 | (rep - 1);
-        repeat -= rep;
-      }
-    } else {  // repeating
-      repeat++;
-      // output non-repeat counts
-      while (nrepeat > 0) {
-        const int nrep = std::min(128, nrepeat);
-        counts[cpos++] = nrep - 1;
-        nrepeat -= nrep;
-      }
-    }
-  }
-
-  // output and remaining counts
-  while (repeat > 0) {
-    const int rep = std::min(128, repeat);
-    counts[cpos++] = 0x80 | (rep - 1);
-    repeat -= rep;
-  }
-  while (nrepeat > 0) {
-    const int nrep = std::min(128, nrepeat);
-    counts[cpos++] = nrep - 1;
-    nrepeat -= nrep;
-  }
-
-  // check compressed size
-  int wpos = vpos * sizeof(type);
-  const int newsize = wpos + cpos + extra + 2;
-  if (newsize >= CS) return false;
-
-  // copy extra bytes at end
-  for (int j = 0; j < extra; j++) {
-    out[wpos++] = in[csize - extra + j];
-  }
-
-  // copy counts to output
-  for (int j = 0; j < cpos; j++) {
-    out[wpos + j] = counts[j];
-  }
-
-  // store position where counts start
-  out[newsize - 2] = wpos & 0xff;
-  out[newsize - 1] = (wpos >> 8) & 0xff;
-  csize = newsize;
-  return true;
+  return h_RLE<unsigned long long>(csize, in, out);
 }
 
 
-static inline void h_iRLE_8(int& csize, byte in [CS], byte out[CS])
+static inline void h_iRLE_8(int& csize, byte in [CS], byte out [CS])
 {
-  using type = long long;
-  type* const in_t = (type*)in;
-  type* const out_t = (type*)out;
-  const int cpos = (((int)in[csize - 1]) << 8) | in[csize - 2];
-  const int extra = cpos % sizeof(type);
-
-  int wpos = 0;  // write position
-  int vpos = 0;  // value position
-  type val = 0;
-  for (int i = cpos; i < csize - 2; i++) {
-    const int rep = in[i];  // int instead of byte
-    if (rep & 0x80) {
-      // write repeating values
-      const int repeat = (rep & 0x7f) + 1;
-      for (int j = 0; j < repeat; j++) {
-        out_t[wpos++] = val;
-      }
-    } else {
-      // write non-repeating values
-      const int nrepeat = rep + 1;
-      for (int j = 0; j < nrepeat; j++) {
-        val = in_t[vpos++];
-        out_t[wpos++] = val;
-      }
-    }
-  }
-
-  // copy extra bytes at end
-  wpos *= sizeof(type);
-  for (int j = 0; j < extra; j++) {
-    out[wpos++] = in[cpos - extra + j];
-  }
-  csize = wpos;
+  h_iRLE<unsigned long long>(csize, in, out);
 }

@@ -37,92 +37,16 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 */
 
 
+#include "include/h_RLE.h"
+
+
 static inline bool h_RLE_1(int& csize, byte in [CS], byte out [CS])
 {
-  byte counts [CS];  // upper bound on size
-  int cpos = 0;  // count position
-  int vpos = 0;  // value position
-
-  // look for repeating and non-repeating values
-  byte prev = ~in[0];
-  int repeat = 0;
-  int nrepeat = 0;
-  for (int i = 0; i < csize; i++) {
-    const byte curr = in[i];
-    if (prev != curr) {  // not repeating
-      prev = curr;
-      out[vpos++] = curr;  // output non-repeating value
-      nrepeat++;
-      // output repeat counts
-      while (repeat > 0) {
-        const int rep = std::min(128, repeat);
-        counts[cpos++] = 0x80 | (rep - 1);
-        repeat -= rep;
-      }
-    } else {  // repeating
-      repeat++;
-      // output non-repeat counts
-      while (nrepeat > 0) {
-        const int nrep = std::min(128, nrepeat);
-        counts[cpos++] = nrep - 1;
-        nrepeat -= nrep;
-      }
-    }
-  }
-
-  // output and remaining counts
-  while (repeat > 0) {
-    const int rep = std::min(128, repeat);
-    counts[cpos++] = 0x80 | (rep - 1);
-    repeat -= rep;
-  }
-  while (nrepeat > 0) {
-    const int nrep = std::min(128, nrepeat);
-    counts[cpos++] = nrep - 1;
-    nrepeat -= nrep;
-  }
-
-  // check compressed size
-  const int newsize = vpos + cpos + 2;
-  if (newsize >= CS) return false;
-
-  // copy counts to output
-  for (int j = 0; j < cpos; j++) {
-    out[vpos + j] = counts[j];
-  }
-
-  // store position where counts start
-  out[newsize - 2] = vpos & 0xff;
-  out[newsize - 1] = (vpos >> 8) & 0xff;
-  csize = newsize;
-  return true;
+  return h_RLE<byte>(csize, in, out);
 }
 
 
-static inline void h_iRLE_1(int& csize, byte in [CS], byte out[CS])
+static inline void h_iRLE_1(int& csize, byte in [CS], byte out [CS])
 {
-  const int cpos = (((int)in[csize - 1]) << 8) | in[csize - 2];
-
-  int wpos = 0;  // write position
-  int vpos = 0;  // value position
-  byte val = 0;
-  for (int i = cpos; i < csize - 2; i++) {
-    const int rep = in[i];  // int instead of byte
-    if (rep & 0x80) {
-      // write repeating values
-      const int repeat = (rep & 0x7f) + 1;
-      for (int j = 0; j < repeat; j++) {
-        out[wpos++] = val;
-      }
-    } else {
-      // write non-repeating values
-      const int nrepeat = rep + 1;
-      for (int j = 0; j < nrepeat; j++) {
-        val = in[vpos++];
-        out[wpos++] = val;
-      }
-    }
-  }
-
-  csize = wpos;
+  h_iRLE<byte>(csize, in, out);
 }

@@ -37,51 +37,16 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 */
 
 
+#include "include/h_DIFF.h"
+
+
 static inline bool h_DIFF_4(int& csize, byte in [CS], byte out [CS])
 {
-  using type = int;
-  const int size = csize / sizeof(type);  // words in chunk (rounded down)
-  type* const in_t = (type*)in;  // type cast
-  type* const out_t = (type*)out;
-
-  // compute difference sequence
-  type prev = 0;
-  for (int i = 0; i < size; i++) {
-    const type val = in_t[i];
-    out_t[i] = val - prev;
-    prev = val;
-  }
-
-  // copy leftover bytes
-  if constexpr (sizeof(type) > 1) {
-    const int extra = csize % sizeof(type);
-    for (int i = 0; i < extra; i++) {
-      out[csize - extra + i] = in[csize - extra + i];
-    }
-  }
-  return true;
+  return h_DIFF<unsigned int>(csize, in, out);
 }
 
 
 static inline void h_iDIFF_4(int& csize, byte in [CS], byte out [CS])
 {
-  using type = int;
-  const int size = csize / sizeof(type);  // words in chunk (rounded down)
-  type* const in_t = (type*)in;  // type cast
-  type* const out_t = (type*)out;
-
-  // compute prefix sum
-  type sum = 0;
-  for (int i = 0; i < size; i++) {
-    sum += in_t[i];
-    out_t[i] = sum;
-  }
-
-  // copy leftover byte
-  if constexpr (sizeof(type) > 1) {
-    const int extra = csize % sizeof(type);
-    for (int i = 0; i < extra; i++) {
-      out[csize - extra + i] = in[csize - extra + i];
-    }
-  }
+  h_iDIFF<unsigned int>(csize, in, out);
 }

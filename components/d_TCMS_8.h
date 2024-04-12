@@ -42,8 +42,7 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 
 static __device__ inline bool d_TCMS_8(int& csize, byte in [CS], byte out [CS], byte temp [CS])
 {
-  d_TCMS<unsigned long long>(csize, in, out, temp);
-  return true;
+  return d_TCMS<unsigned long long>(csize, in, out, temp);
 }
 
 

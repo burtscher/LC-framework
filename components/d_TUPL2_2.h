@@ -42,8 +42,7 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 
 static __device__ inline bool d_TUPL2_2(int& csize, byte in [CS], byte out [CS], byte temp [CS])
 {
-  d_TUPL<short, 2>(csize, in, out, temp);
-  return true;
+  return d_TUPL<short, 2>(csize, in, out, temp);
 }
 
 

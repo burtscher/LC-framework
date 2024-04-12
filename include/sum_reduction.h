@@ -64,13 +64,23 @@ static __device__ inline T block_sum_reduction(T val, void* buffer)  // returns 
     if (warp == 0) {
       val = (lane < warps) ? s_carry[lane] : 0;
       val += __shfl_xor_sync(~0, val, 1);  // MB: use reduction on 8.6 CC
-      val += __shfl_xor_sync(~0, val, 2);
-      val += __shfl_xor_sync(~0, val, 4);
-      val += __shfl_xor_sync(~0, val, 8);
-      val += __shfl_xor_sync(~0, val, 16);
-#if defined(WS) && (WS == 64)
-      val += __shfl_xor_sync(~0, val, 32);
-#endif
+      if constexpr (warps > 2) {
+        val += __shfl_xor_sync(~0, val, 2);
+        if constexpr (warps > 4) {
+          val += __shfl_xor_sync(~0, val, 4);
+          if constexpr (warps > 8) {
+            val += __shfl_xor_sync(~0, val, 8);
+            if constexpr (warps > 16) {
+              val += __shfl_xor_sync(~0, val, 16);
+              #if defined(WS) && (WS == 64)
+              if constexpr (warps > 32) {
+                val += __shfl_xor_sync(~0, val, 32);
+              }
+              #endif
+            }
+          }
+        }
+      }
       s_carry[lane] = val;
     }
     __syncthreads();  // s_carry updated

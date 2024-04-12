@@ -37,141 +37,17 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 */
 
 
-#include "include/h_repetition_elimination.h"
+
+#include "include/h_RRE.h"
 
 
 static inline bool h_RRE_8(int& csize, byte in [CS], byte out [CS])
 {
-  using type = unsigned long long;
-  const int size = csize / sizeof(type);  // words in chunk (rounded down)
-  const int extra = csize % sizeof(type);
-  const int bits = 8 * sizeof(type);
-  const int num = (2048 + 256 + 32 + 4) / sizeof(type);
-  assert(CS == 16384);
-
-  // zero out end of bitmap
-  byte bitmap [num];
-  if (csize < CS) {
-    memset(&bitmap[csize / bits], 0, CS / bits - csize / bits);
-  }
-
-  // copy non-repeating values and generate bitmap
-  int wpos = 0;
-  if (size > 0) h_REencode((type*)in, size, (type*)out, wpos, (type*)bitmap);
-  wpos *= sizeof(type);
-  if (wpos >= CS - 2 - extra) return false;
-
-  // check if not all zeros
-  if (wpos != 0) {
-    int base = 0;
-    int range = CS / bits;
-
-    // iteratively compress bitmap
-    while (range >= 8) {  // 2048 256 32 / sizeof(type)
-      byte prev = 0;
-      for (int i = 0; i < range; i += 8) {
-        const long long lval = *((long long*)(&bitmap[base + i]));
-        byte bmp = 0;
-        for (int j = 0; j < 8; j++) {
-          const byte val = (lval >> (j * 8)) & 0xff;
-          if (val != prev) {
-            out[wpos++] = prev = val;
-            bmp |= 1 << j;
-            if (wpos >= CS - 2 - extra) return false;
-          }
-        }
-        bitmap[base + range + i / 8] = bmp;
-      }
-      base += range;
-      range /= 8;
-    }
-
-    // output last level of bitmap
-    if (wpos >= CS - 2 - extra - range) return false;
-    for (int i = 0; i < range; i++) {  // 4 / sizeof(type)
-      out[wpos++] = bitmap[base + i];
-    }
-  }
-
-  // copy leftover bytes
-  if constexpr (sizeof(type) > 1) {
-    for (int i = 0; i < extra; i++) {
-      out[wpos++] = in[csize - extra + i];
-    }
-  }
-
-  // output old csize and update csize
-  out[wpos++] = csize;  // bottom byte
-  out[wpos++] = csize >> 8;  // second byte
-  csize = wpos;
-  return true;
+  return h_RRE<unsigned long long>(csize, in, out);
 }
 
 
 static inline void h_iRRE_8(int& csize, byte in [CS], byte out [CS])
 {
-  using type = unsigned long long;
-  int rpos = csize;
-  csize = (int)in[--rpos] << 8;  // second byte
-  csize |= in[--rpos];  // bottom byte
-  const int size = csize / sizeof(type);  // words in chunk (rounded down)
-  const int bits = 8 * sizeof(type);
-  const int num = (2048 + 256 + 32 + 4) / sizeof(type);
-  assert(CS == 16384);
-
-  // copy leftover byte
-  if constexpr (sizeof(type) > 1) {
-    const int extra = csize % sizeof(type);
-    for (int i = 0; i < extra; i++) {
-      out[csize - extra + i] = in[rpos - extra + i];
-    }
-    rpos -= extra;
-  }
-
-  if (rpos == 0) {
-    // all zeros
-    memset(out, 0, size * sizeof(type));
-  } else {
-    int base = 0;
-    int range = CS / bits;
-    while (range >= 8) {  // 2048 256 32 / sizeof(type)
-      base += range;
-      range /= 8;
-    }
-
-    // read in last level of bitmap
-    byte bitmap [num];
-    rpos -= range;
-    for (int i = 0; i < range; i++) {  // 4 / sizeof(type)
-      bitmap[base + i] = in[rpos + i];
-    }
-
-    // iteratively decompress bitmap
-    while (range < CS / bits) {  // 32 256 2048 / sizeof(type)
-      range *= 8;
-      base -= range;
-
-      if (range % 64 != 0) {
-        for (int i = 0; i < range; i += 8) {
-          rpos -= __builtin_popcount((int)bitmap[base + range + i / 8]);
-        }
-      } else {
-        for (int i = 0; i < range; i += 64) {
-          rpos -= __builtin_popcountll(*((long long*)(&bitmap[base + range + i / 8])));
-        }
-      }
-
-      int pos = rpos;
-      byte val = 0;
-      for (int i = 0; i < range; i++) {
-        if (bitmap[base + range + i / 8] & (1 << (i % 8))) {
-          val = in[pos++];
-        }
-        bitmap[base + i] = val;
-      }
-    }
-
-    // copy non-repeating values based on bitmap
-    if (size > 0) h_REdecode(size, (type*)in, (type*)bitmap, (type*)out);
-  }
+  h_iRRE<unsigned long long>(csize, in, out);
 }

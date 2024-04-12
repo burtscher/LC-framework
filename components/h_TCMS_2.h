@@ -42,8 +42,7 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 
 static inline bool h_TCMS_2(int& csize, byte in [CS], byte out [CS])
 {
-  h_TCMS<unsigned short>(csize, in, out);
-  return true;
+  return h_TCMS<unsigned short>(csize, in, out);
 }
 
 

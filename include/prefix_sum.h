@@ -72,18 +72,28 @@ static __device__ inline T block_prefix_sum(T val, void* buffer)  // returns inc
       T sum = carry[lane];
       T tmp = __shfl_up_sync(~0, sum, 1);
       if (lane >= 1) sum += tmp;
-      tmp = __shfl_up_sync(~0, sum, 2);
-      if (lane >= 2) sum += tmp;
-      tmp = __shfl_up_sync(~0, sum, 4);
-      if (lane >= 4) sum += tmp;
-      tmp = __shfl_up_sync(~0, sum, 8);
-      if (lane >= 8) sum += tmp;
-      tmp = __shfl_up_sync(~0, sum, 16);
-      if (lane >= 16) sum += tmp;
-#if defined(WS) && (WS == 64)
-      tmp = __shfl_up_sync(~0, sum, 32);
-      if (lane >= 32) sum += tmp;
-#endif
+      if constexpr (warps > 2) {
+        tmp = __shfl_up_sync(~0, sum, 2);
+        if (lane >= 2) sum += tmp;
+        if constexpr (warps > 4) {
+          tmp = __shfl_up_sync(~0, sum, 4);
+          if (lane >= 4) sum += tmp;
+          if constexpr (warps > 8) {
+            tmp = __shfl_up_sync(~0, sum, 8);
+            if (lane >= 8) sum += tmp;
+            if constexpr (warps > 16) {
+              tmp = __shfl_up_sync(~0, sum, 16);
+              if (lane >= 16) sum += tmp;
+              #if defined(WS) && (WS == 64)
+              if constexpr (warps > 32) {
+                tmp = __shfl_up_sync(~0, sum, 32);
+                if (lane >= 32) sum += tmp;
+              }
+              #endif
+            }
+          }
+        }
+      }
       carry[lane] = sum;
     }
     __syncthreads();  // carry updated

@@ -37,140 +37,16 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 */
 
 
+#include "include/h_CLOG.h"
+
+
 static inline bool h_CLOG_1(int& csize, byte in [CS], byte out [CS])
 {
-  using type = byte;  // must be unsigned
-  assert(std::is_unsigned<type>::value);
-  const int TB = sizeof(type) * 8;  // number of bits in type
-  const int SC = 32;  // subchunks
-  const int CB = (32 - __builtin_clz(sizeof(type))) + 3;  // counter bits
-  assert((1 << CB) > TB);
-  assert((1 << (CB - 1)) <= TB);
-
-  // type casts
-  type* in_t = (type*)in;
-  type* out_t = (type*)out;
-  const int size = csize / sizeof(type);
-
-  // determine bits needed for each subchunk
-  byte ln [SC];
-  int bits = 0;
-  int end = 0;
-  for (int i = 0; i < SC; i++) {
-    const int beg = end;
-    end = (i + 1) * size / SC;
-    type max_val = 0;
-    for (int j = beg; j < end; j++) {
-      max_val = std::max(max_val, in_t[j]);
-    }
-    int cnt = 0;
-    if (max_val != 0) {
-      cnt = (sizeof(type) == 8) ? (sizeof(unsigned long long) * 8 - __builtin_clzll((unsigned long long)max_val)) : (sizeof(unsigned int) * 8 - __builtin_clz((unsigned int)max_val));
-    }
-    bits += cnt * (end - beg);
-    ln[i] = cnt;
-  }
-
-  // check if encoded data fits
-  const int extra = csize % sizeof(type);
-  const int newsize = (16 + CB * SC + bits + 7) / 8;
-  if (newsize + extra >= CS) return false;
-
-  // clear out buffer
-  memset(out_t, 0, newsize);
-
-  out[0] = csize & 0xFF;
-  out[1] = csize >> 8;
-  int loc = 16;
-  // encode logn values
-  for (int i = 0; i < SC; i++) {
-    const type val = ln[i];
-    const int pos = loc / TB;
-    const int shift = loc % TB;
-    out_t[pos] |= val << shift;
-    if (TB - CB < shift) {
-      out_t[pos + 1] = val >> (TB - shift);
-    }
-    loc += CB;
-  }
-
-  // encode data values
-  end = 0;
-  for (int i = 0; i < SC; i++) {
-    const int logn = ln[i];
-    const int beg = end;
-    end = (i + 1) * size / SC;
-    for (int j = beg; j < end; j++) {
-      const type val = in_t[j];
-      const int pos = loc / TB;
-      const int shift = loc % TB;
-      out_t[pos] |= val << shift;
-      if (TB - logn < shift) {
-        out_t[pos + 1] = val >> (TB - shift);
-      }
-      loc += logn;
-    }
-  }
-
-  // copy extra bytes at end and update csize
-  for (int i = 0; i < extra; i++) out[newsize + i] = in[csize - extra + i];
-  csize = newsize + extra;
-  return true;
+  return h_CLOG<byte>(csize, in, out);
 }
 
 
 static inline void h_iCLOG_1(int& csize, byte in [CS], byte out [CS])
 {
-  using type = byte;  // must be unsigned
-  assert(std::is_unsigned<type>::value);
-  const int TB = sizeof(type) * 8;  // number of bits in type
-  const int SC = 32;  // subchunks
-  const int CB = (32 - __builtin_clz(sizeof(type))) + 3;  // counter bits
-  assert((1 << CB) > TB);
-  assert((1 << (CB - 1)) <= TB);
-
-  // type casts
-  type* in_t = (type*)in;
-  type* out_t = (type*)out;
-
-  // decode logn values
-  byte ln [SC];
-  int loc = 16;
-  const type mask = ((1 << CB) - 1);
-  for (int i = 0; i < SC; i++) {
-    const int pos = loc / TB;
-    const int shift = loc % TB;
-    type res = in_t[pos] >> shift;
-    if (TB - CB < shift) {
-      res |= in_t[pos + 1] << (TB - shift);
-    }
-    ln[i] = res & mask;
-    loc += CB;
-  }
-
-  // decode data values
-  const int orig_csize = *((unsigned short*)in);
-  const int size = orig_csize / sizeof(type);
-  int end = 0;
-  for (int i = 0; i < SC; i++) {
-    const int logn = ln[i];
-    const int beg = end;
-    end = (i + 1) * size / SC;
-    const type mask = (sizeof(type) < 8) ? ((1ULL << logn) - 1) : ((logn == 64) ? (-1LL) : ((1ULL << logn) - 1));
-    for (int j = beg; j < end; j++) {
-      const int pos = loc / TB;
-      const int shift = loc % TB;
-      type res = in_t[pos] >> shift;
-      if (TB - logn < shift) {
-        res |= in_t[pos + 1] << (TB - shift);
-      }
-      out_t[j] = res & mask;
-      loc += logn;
-    }
-  }
-
-  // copy extra bytes at end and update csize
-  const int extra = orig_csize % sizeof(type);
-  for (int i = 0; i < extra; i++) out[orig_csize - extra + i] = in[csize - extra + i];
-  csize = orig_csize;
+  h_iCLOG<byte>(csize, in, out);
 }

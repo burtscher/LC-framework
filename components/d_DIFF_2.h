@@ -37,58 +37,16 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 */
 
 
+#include "include/d_DIFF.h"
+
+
 static __device__ inline bool d_DIFF_2(int& csize, byte in [CS], byte out [CS], byte temp [CS])
 {
-  using type = short;
-  type* const in_t = (type*)in;
-  type* const out_t = (type*)out;
-  const int tid = threadIdx.x;
-  const int size = csize / sizeof(type);  // words in chunk (rounded down)
-
-  // compute difference sequence
-  for (int i = tid; i < size; i += TPB) {
-    const type prev = (i == 0) ? 0 : in_t[i - 1];
-    const type val = in_t[i];
-    out_t[i] = val - prev;
-  }
-
-  // copy leftover bytes at end
-  if constexpr (sizeof(type) > 1) {
-    const int extra = csize % sizeof(type);
-    if (tid < extra) out[csize - extra + tid] = in[csize - extra + tid];
-  }
-  return true;
+  return d_DIFF<unsigned short>(csize, in, out, temp);
 }
 
 
 static __device__ inline void d_iDIFF_2(int& csize, byte in [CS], byte out [CS], byte temp [CS])
 {
-  using type = short;
-  type* const in_t = (type*)in;
-  type* const out_t = (type*)out;
-  const int tid = threadIdx.x;
-  const int size = csize / sizeof(type);  // words in chunk (rounded down)
-  const int beg = tid * size / TPB;
-  const int end = (tid + 1) * size / TPB;
-
-  // compute local sums
-  type sum = 0;
-  for (int i = beg; i < end; i++) {
-    sum += in_t[i];
-  }
-
-  // compute prefix sum
-  sum = block_prefix_sum(sum, temp);
-
-  // compute intermediate values
-  for (int i = end - 1; i >= beg; i--) {
-    out_t[i] = sum;
-    sum -= in_t[i];
-  }
-
-  // copy leftover bytes at end
-  if constexpr (sizeof(type) > 1) {
-    const int extra = csize % sizeof(type);
-    if (tid < extra) out[csize - extra + tid] = in[csize - extra + tid];
-  }
+  d_iDIFF<unsigned short>(csize, in, out, temp);
 }
