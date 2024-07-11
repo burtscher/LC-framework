@@ -1,10 +1,8 @@
 # LC Framework
 
-LC is a framework for automatically generating high-speed lossless and guaranteed-error-bounded lossy data compression and decompression algorithms. It supports CPUs and GPUs.
+LC is a framework for automatically generating customized lossless and guaranteed-error-bounded lossy data-compression algorithms for individual files or groups of files. The resulting compressors and decompressors are parallelized and produce bit-for-bit the same result on CPUs and GPUs.
 
-The framework code and tutorial are available at <https://github.com/burtscher/LC-framework/>.
-
-If any part of this tutorial does not work for you or you have other question about LC, please don't hesitate to contact us at <burtscher@txstate.edu> so we can help.
+A step-by-step tutorial is available below. If any part of this tutorial does not work for you or you have other question about LC, please do not hesitate to contact us at <burtscher@txstate.edu> so we can help.
 
 
 ## Overview
@@ -14,7 +12,26 @@ LC consists of the following three parts:
  - Preprocessor library
  - Framework
 
-Both libraries contain encoders and decoders for CPU and GPU execution. The user can extend these libraries. The framework takes preprocessors and components from these libraries and chains them into a pipeline to build a compression algorithm. It similarly chains the corresponding decoders in the opposite order to build the matching decompression algorithm. Moreover, the framework can automatically search for effective algorithms for a given input file or set of files by testing user-selected sets of components in each pipeline stage.
+Both libraries contain data transformations (encoders) and their inverses (decoders) for CPU and GPU execution. The user can extend these libraries as explained in the tutorial. The framework takes preprocessors and components from these libraries and chains them into a pipeline to build a compression algorithm. It similarly chains the corresponding decoders in the opposite order to build the matching decompression algorithm. Figure 1 illustrates this process. Importantly, LC can automatically search for effective compression algorithms by testing all combinations of user-selected sets of components in each pipeline stage.
+
+![LC overview](LC.svg "LC overview")
+
+Figure 1: LC's process of chaining (a.k.a. pipelining) *n* data transformations to form a custom compression algorithm and the inverses of those transformations to form the matching decompression algorithm (the components are lossless whereas the preprocessors include guaranteed-error-bounded lossy quantizers).
+
+
+### General Features
+
+LC supports both exhaustive search for the best algorithm in the search space as well as a genetic-algorithm-based search for cases where the exhaustive search would take too long. In addition, the user can optionally supply a regular expression to reduce the size of the search space. LC is able to search for the best algorithm based solely on compression ratio or based on both compression ratio and throughput. In the latter case, it outputs the Pareto front, that is, a set of algorithms that represent different compression-ratio versus speed tradeoffs.
+
+LC can run on and generate algorithms for CPUs and GPUs. The algorithms are deterministic and fully compatible, meaning the user may compress a file on either the CPU or GPU and decompress the resulting file on either the CPU or GPU. The CPU code is written in C++ and parallelized using OpenMP. The GPU code is written in CUDA. Once a suitable algorithm has been found, the user can employ LC's code generator to produce a standalone compressor and decompressor for that algorithm that does not require the framework.
+
+LC includes an extensive library of components and preprocessors. Most of them support 1-, 2-, 4-, and 8-byte word sizes. Both libraries are user customizable and extensible, meaning users are able to add their own data transformations by following the API outlined in the tutorial. LC then includes the new transformations in its search for a good compression algorithm and can use them in the code generator.
+
+
+### Lossy-Mode Features
+
+In addition to lossless algorithms, LC can also generate lossy algorithms for 32-bit single and 64-bit double-precision floating-point data. It supports absolute, relative, normalized absolute, and combined absolute & relative error bounds. Moreover, it guarantees that these point-wise error bounds are not violated by losslessly encoding any value that it cannot quantize within the provided error bound. It supports all floating-point values, including infinities, not-a-number (NaN), and denormals. Each quantizer provides two modes, one that replaces the lost bits by zeros and another that replaces them by random bits to minimize autocorrelation between the errors.
+
 
 ---
 
