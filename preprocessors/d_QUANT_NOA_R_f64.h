@@ -40,10 +40,11 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 #include <thrust/extrema.h>
 #include <thrust/execution_policy.h>
 #include <thrust/device_ptr.h>
+#include <cuda/std/limits>
 
 
 // source of hash function: https://stackoverflow.com/questions/664014/what-integer-hash-function-are-good-that-accepts-an-integer-hash-key
-static __device__ unsigned int d_QUANT_R2R_R_f64_hash(unsigned int val)
+static __device__ unsigned int d_QUANT_NOA_R_f64_hash(unsigned int val)
 {
   val = ((val >> 16) ^ val) * 0x45d9f3b;
   val = ((val >> 16) ^ val) * 0x45d9f3b;
@@ -51,7 +52,7 @@ static __device__ unsigned int d_QUANT_R2R_R_f64_hash(unsigned int val)
 }
 
 
-static __global__ void d_QUANT_R2R_R_f64_kernel(const int len, byte* const __restrict__ data, byte* const __restrict__ orig_data, const double errorbound, const double* maxf, const double* minf, const double threshold)
+static __global__ void d_QUANT_NOA_R_f64_kernel(const int len, byte* const __restrict__ data, byte* const __restrict__ orig_data, const double errorbound, const double* maxf, const double* minf, const double threshold)
 {
   double* const orig_data_f = (double*)orig_data;
   long long* const orig_data_i = (long long*)orig_data;
@@ -59,6 +60,7 @@ static __global__ void d_QUANT_R2R_R_f64_kernel(const int len, byte* const __res
   long long* const data_i = (long long*)data;
 
   const double adj_eb = (*maxf - *minf) * errorbound;
+  if (adj_eb < cuda::std::numeric_limits<double>::min()) {printf("QUANT_NOA_R_f64: ERROR: error_bound must be at least %e, NOA error bound was calculated to be %e\n", cuda::std::numeric_limits<double>::min(), adj_eb); __trap();}
   const int mantissabits = 52;
   const long long maxbin = 1LL << (mantissabits - 1);  // leave 1 bit for sign
   const double inv_eb = 1 / adj_eb;
@@ -70,12 +72,12 @@ static __global__ void d_QUANT_R2R_R_f64_kernel(const int len, byte* const __res
     const double orig_f = orig_data_f[idx];
     const double scaled = orig_f * inv_eb;
     const long long bin = (long long)round(scaled);
-    const long long rnd1 = d_QUANT_R2R_R_f64_hash(bin + idx);
-    const long long rnd2 = d_QUANT_R2R_R_f64_hash((bin >> 32) - idx);
+    const long long rnd1 = d_QUANT_NOA_R_f64_hash(bin + idx);
+    const long long rnd2 = d_QUANT_NOA_R_f64_hash((bin >> 32) - idx);
     const double rnd = inv_mask * (((rnd2 << 32) | rnd1) & mask) - 0.5;  // random noise
     const double recon = (bin + rnd) * adj_eb;
 
-    if ((bin >= maxbin) || (bin <= -maxbin) || (fabs(orig_f) >= threshold) || (recon < orig_f - adj_eb) || (recon > orig_f + adj_eb) || (fabs(orig_f - recon) > adj_eb) || (orig_f != orig_f)) {  // last check is to handle NaNs
+    if ((bin >= maxbin) || (bin <= -maxbin) || (fabs(orig_f) >= threshold) || (fabs(orig_f - recon) > adj_eb) || (orig_f != orig_f)) {  // last check is to handle NaNs
       data_f[idx] = orig_f;
       assert(((orig_data_i[idx] >> mantissabits) & 0x7ff) != 0);
     } else {
@@ -89,7 +91,7 @@ static __global__ void d_QUANT_R2R_R_f64_kernel(const int len, byte* const __res
 }
 
 
-static __global__ void d_iQUANT_R2R_R_f64_kernel(const int len, byte* const __restrict__ data)
+static __global__ void d_iQUANT_NOA_R_f64_kernel(const int len, byte* const __restrict__ data)
 {
   double* const data_f = (double*)data;
   long long* const data_i = (long long*)data;
@@ -104,8 +106,8 @@ static __global__ void d_iQUANT_R2R_R_f64_kernel(const int len, byte* const __re
     long long bin = data_i[idx];
     if ((0 <= bin) && (bin < (1LL << mantissabits))) {  // is encoded value
       bin = (bin >> 1) ^ (((bin << 63) >> 63));  // TCMS decoding
-      const long long rnd1 = d_QUANT_R2R_R_f64_hash(bin + idx);
-      const long long rnd2 = d_QUANT_R2R_R_f64_hash((bin >> 32) - idx);
+      const long long rnd1 = d_QUANT_NOA_R_f64_hash(bin + idx);
+      const long long rnd2 = d_QUANT_NOA_R_f64_hash((bin >> 32) - idx);
       const double rnd = inv_mask * (((rnd2 << 32) | rnd1) & mask) - 0.5;  // random noise
       data_f[idx] = (bin + rnd) * errorbound;
     }
@@ -113,15 +115,15 @@ static __global__ void d_iQUANT_R2R_R_f64_kernel(const int len, byte* const __re
 }
 
 
-static inline void d_QUANT_R2R_R_f64(int& size, byte*& data, const int paramc, const double paramv [])
+static inline void d_QUANT_NOA_R_f64(int& size, byte*& data, const int paramc, const double paramv [])
 {
-  if (size % sizeof(double) != 0) {fprintf(stderr, "QUANT_R2R_R_f64: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(double)); throw std::runtime_error("LC error");}
+  if (size % sizeof(double) != 0) {fprintf(stderr, "QUANT_NOA_R_f64: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(double)); throw std::runtime_error("LC error");}
   const int len = size / sizeof(double);
-  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_R2R_R_f64(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
+  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_NOA_R_f64(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
   const double errorbound = paramv[0];
   const double threshold = (paramc == 2) ? paramv[1] : std::numeric_limits<double>::infinity();
-  if (errorbound < std::numeric_limits<double>::min()) {fprintf(stderr, "QUANT_R2R_R_f64: ERROR: error_bound must be at least %e\n", std::numeric_limits<double>::min()); throw std::runtime_error("LC error");}  // minimum positive normalized value
-  if (threshold <= errorbound) {fprintf(stderr, "QUANT_R2R_R_f64: ERROR: threshold must be larger than error_bound\n"); throw std::runtime_error("LC error");}
+  if (errorbound < std::numeric_limits<double>::min()) {fprintf(stderr, "QUANT_NOA_R_f64: ERROR: error_bound must be at least %e\n", std::numeric_limits<double>::min()); throw std::runtime_error("LC error");}  // minimum positive normalized value
+  if (threshold <= errorbound) {fprintf(stderr, "QUANT_NOA_R_f64: ERROR: threshold must be larger than error_bound\n"); throw std::runtime_error("LC error");}
 
   byte* d_new_data;
   if (cudaSuccess != cudaMalloc((void**) &d_new_data, size + sizeof(double))) {
@@ -132,7 +134,7 @@ static inline void d_QUANT_R2R_R_f64(int& size, byte*& data, const int paramc, c
   thrust::device_ptr<double> dev_ptr = thrust::device_pointer_cast((double*)data);
   thrust::pair<thrust::device_ptr<double>, thrust::device_ptr<double>> min_max = thrust::minmax_element(thrust::device, dev_ptr, dev_ptr + len);
 
-  d_QUANT_R2R_R_f64_kernel<<<(len + TPB - 1) / TPB, TPB>>>(len, d_new_data, data, errorbound, thrust::raw_pointer_cast(min_max.second), thrust::raw_pointer_cast(min_max.first), threshold);
+  d_QUANT_NOA_R_f64_kernel<<<(len + TPB - 1) / TPB, TPB>>>(len, d_new_data, data, errorbound, thrust::raw_pointer_cast(min_max.second), thrust::raw_pointer_cast(min_max.first), threshold);
 
   cudaFree(data);
   data = (byte*) d_new_data;
@@ -140,13 +142,13 @@ static inline void d_QUANT_R2R_R_f64(int& size, byte*& data, const int paramc, c
 }
 
 
-static inline void d_iQUANT_R2R_R_f64(int& size, byte*& data, const int paramc, const double paramv [])
+static inline void d_iQUANT_NOA_R_f64(int& size, byte*& data, const int paramc, const double paramv [])
 {
-  if (size % sizeof(double) != 0) {fprintf(stderr, "QUANT_R2R_R_f64: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(double)); throw std::runtime_error("LC error");}
+  if (size % sizeof(double) != 0) {fprintf(stderr, "QUANT_NOA_R_f64: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(double)); throw std::runtime_error("LC error");}
   const int len = size / sizeof(double);
-  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_R2R_R_f64(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
+  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_NOA_R_f64(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
 
-  d_iQUANT_R2R_R_f64_kernel<<<(len + TPB - 1) / TPB, TPB>>>(len - 1, data);
+  d_iQUANT_NOA_R_f64_kernel<<<(len + TPB - 1) / TPB, TPB>>>(len - 1, data);
 
   size -= sizeof(double);
 }

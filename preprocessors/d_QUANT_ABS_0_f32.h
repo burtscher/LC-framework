@@ -51,7 +51,7 @@ static __global__ void d_QUANT_ABS_0_f32_kernel(const int len, byte* const __res
     const int bin = (int)roundf(scaled);
     const float recon = bin * eb2;
 
-    if ((bin >= maxbin) || (bin <= -maxbin) || (fabsf(orig_f) >= threshold) || (recon < orig_f - errorbound) || (recon > orig_f + errorbound) || (fabsf(orig_f - recon) > errorbound) || (orig_f != orig_f)) {  // last check is to handle NaNs
+    if ((bin >= maxbin) || (bin <= -maxbin) || (fabsf(orig_f) >= threshold) || (fabsf(orig_f - recon) > errorbound) || (orig_f != orig_f)) {  // last check is to handle NaNs
       assert(((data_i[idx] >> mantissabits) & 0xff) != 0);
     } else {
       data_i[idx] = (bin << 1) ^ (bin >> 31);  // TCMS encoding, 'sign' and 'exponent' fields are zero

@@ -37,20 +37,14 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 */
 
 
-// source of hash function: https://stackoverflow.com/questions/664014/what-integer-hash-function-are-good-that-accepts-an-integer-hash-key
-static unsigned int h_QUANT_R2R_R_f64_hash(unsigned int val)
-{
-  val = ((val >> 16) ^ val) * 0x45d9f3b;
-  val = ((val >> 16) ^ val) * 0x45d9f3b;
-  return (val >> 16) ^ val;
-}
+#include <limits>
 
 
-static inline void h_QUANT_R2R_R_f64(int& size, byte*& data, const int paramc, const double paramv [])
+static inline void h_QUANT_NOA_0_f64(int& size, byte*& data, const int paramc, const double paramv [])
 {
-  if (size % sizeof(double) != 0) {fprintf(stderr, "QUANT_R2R_R_f64: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(double)); throw std::runtime_error("LC error");}
+  if (size % sizeof(double) != 0) {fprintf(stderr, "QUANT_NOA_0_f64: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(float)); throw std::runtime_error("LC error");}
   const int len = size / sizeof(double);
-  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_R2R_R_f64(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
+  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_NOA_0_f64(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
   const double errorbound = paramv[0];
   const double threshold = (paramc == 2) ? paramv[1] : std::numeric_limits<double>::infinity();
 
@@ -71,27 +65,23 @@ static inline void h_QUANT_R2R_R_f64(int& size, byte*& data, const int paramc, c
 
   const double adj_eb = (maxf - minf) * errorbound;
   data_f[len] = adj_eb;
-  if (adj_eb < std::numeric_limits<double>::min()) {fprintf(stderr, "QUANT_R2R_R_f64: ERROR: error_bound must be at least %e, R2R error bound was calculated to be %e\n", std::numeric_limits<double>::min(), adj_eb); throw std::runtime_error("LC error");}  // minimum positive normalized value
-  if (threshold <= adj_eb) {fprintf(stderr, "QUANT_R2R_R_f64: ERROR: threshold must be larger than error_bound, R2R error bound was calculated to be %e\n", adj_eb); throw std::runtime_error("LC error");}
+  if (adj_eb < std::numeric_limits<double>::min()) {fprintf(stderr, "QUANT_NOA_0_f64: ERROR: error_bound must be at least %e, NOA error bound was calculated to be %e\n", std::numeric_limits<double>::min(), adj_eb); throw std::runtime_error("LC error");}  // minimum positive normalized value
+  if (threshold <= adj_eb) {fprintf(stderr, "QUANT_NOA_0_f64: ERROR: threshold must be larger than error_bound, NOA error bound was calculated to be %e\n", adj_eb); throw std::runtime_error("LC error");}
 
   const int mantissabits = 52;
   const long long maxbin = 1LL << (mantissabits - 1);  // leave 1 bit for sign
-  const double inv_eb = 1 / adj_eb;
-  const long long mask = (1LL << mantissabits) - 1;
-  const double inv_mask = 1.0 / mask;
+  const double eb2 = 2 * adj_eb;
+  const double inv_eb2 = 0.5 / adj_eb;
 
   int count = 0;
-  #pragma omp parallel for default(none) shared(len, data, data_i, data_f, orig_data_f, adj_eb, inv_eb, inv_mask, mask, threshold, maxbin, errorbound, mantissabits) reduction(+: count)
+  #pragma omp parallel for default(none) shared(len, data, data_i, data_f, orig_data_f, adj_eb, eb2, inv_eb2, threshold, maxbin, mantissabits) reduction(+: count)
   for (int i = 0; i < len; i++) {
     const double orig_f = orig_data_f[i];
-    const double scaled = orig_f * inv_eb;
+    const double scaled = orig_f * inv_eb2;
     const long long bin = (long long)round(scaled);
-    const long long rnd1 = h_QUANT_R2R_R_f64_hash(bin + i);
-    const long long rnd2 = h_QUANT_R2R_R_f64_hash((bin >> 32) - i);
-    const double rnd = inv_mask * (((rnd2 << 32) | rnd1) & mask) - 0.5;  // random noise
-    const double recon = (bin + rnd) * adj_eb;
+    const double recon = bin * eb2;
 
-    if ((bin >= maxbin) || (bin <= -maxbin) || (fabs(orig_f) >= threshold) || (recon < orig_f - adj_eb) || (recon > orig_f + adj_eb) || (fabs(orig_f - recon) > adj_eb) || (orig_f != orig_f)) {  // last check is to handle NaNs
+    if ((bin >= maxbin) || (bin <= -maxbin) || (fabs(orig_f) >= threshold) || (fabs(orig_f - recon) > adj_eb) || (orig_f != orig_f)) {  // last check is to handle NaNs
       count++;  // informal only
       assert(((((long long*)data)[i] >> mantissabits) & 0x7ff) != 0);
       data_f[i] = orig_f;
@@ -104,34 +94,30 @@ static inline void h_QUANT_R2R_R_f64(int& size, byte*& data, const int paramc, c
   data = (byte *)data_f;
   size += sizeof(double);
 
-  if (count != 0) printf("QUANT_R2R_R_f64: encountered %d non-quantizable values (%.3f%%)\n", count, 100.0 * count / len);  // informal only
+  if (count != 0) printf("QUANT_NOA_0_f64: encountered %d non-quantizable values (%.3f%%)\n", count, 100.0 * count / len);  // informal only
 }
 
 
-static inline void h_iQUANT_R2R_R_f64(int& size, byte*& data, const int paramc, const double paramv [])
+static inline void h_iQUANT_NOA_0_f64(int& size, byte*& data, const int paramc, const double paramv [])
 {
-  if (size % sizeof(double) != 0) {fprintf(stderr, "QUANT_R2R_R_f64: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(double)); throw std::runtime_error("LC error");}
+  if (size % sizeof(double) != 0) {fprintf(stderr, "QUANT_NOA_0_f64: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(float)); throw std::runtime_error("LC error");}
   const int len = size / sizeof(double) - 1;
-  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_R2R_R_f64(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
+  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_NOA_0_f64(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
 
   double* const data_f = (double*)data;
   long long* const data_i = (long long*)data_f;
   const double errorbound = data_f[len];
-  if (errorbound < std::numeric_limits<double>::min()) {fprintf(stderr, "QUANT_R2R_R_f64: ERROR: error_bound must be at least %e\n", std::numeric_limits<double>::min()); throw std::runtime_error("LC error");}  // minimum positive normalized value
+  if (errorbound < std::numeric_limits<double>::min()) {fprintf(stderr, "QUANT_NOA_0_f64: ERROR: error_bound must be at least %e\n", std::numeric_limits<float>::min()); throw std::runtime_error("LC error");}  // minimum positive normalized value
 
   const int mantissabits = 52;
-  const long long mask = (1LL << mantissabits) - 1;
-  const double inv_mask = 1.0 / mask;
+  const double eb2 = 2 * errorbound;
 
-  #pragma omp parallel for default(none) shared(len, data_f, data_i, mask, inv_mask, errorbound, mantissabits)
+  #pragma omp parallel for default(none) shared(len, data_f, data_i, eb2, mantissabits)
   for (int i = 0; i < len; i++) {
     long long bin = data_i[i];
     if ((0 <= bin) && (bin < (1LL << mantissabits))) {  // is encoded value
       bin = (bin >> 1) ^ (((bin << 63) >> 63));  // TCMS decoding
-      const long long rnd1 = h_QUANT_R2R_R_f64_hash(bin + i);
-      const long long rnd2 = h_QUANT_R2R_R_f64_hash((bin >> 32) - i);
-      const double rnd = inv_mask * (((rnd2 << 32) | rnd1) & mask) - 0.5;  // random noise
-      data_f[i] = (bin + rnd) * errorbound;
+      data_f[i] = bin * eb2;
     }
   }
 

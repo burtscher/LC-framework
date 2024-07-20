@@ -154,7 +154,9 @@ int main(int argc, char* argv [])
   printf("input: %s\n", argv[1]);
   FILE* const fin = fopen(argv[1], "rb"); assert(fin != NULL);
   fseek(fin, 0, SEEK_END);
-  const int fsize = ftell(fin); assert(fsize > 0);
+  const long long fsize = ftell(fin);
+  if (fsize <= 0) {fprintf(stderr, "ERROR: input file too small\n\n"); throw std::runtime_error("LC error");}
+  if (fsize >= 2147221529) {fprintf(stderr, "ERROR: input file too large\n\n"); throw std::runtime_error("LC error");}
   byte* const input = new byte [fsize];
   fseek(fin, 0, SEEK_SET);
   const int insize = fread(input, 1, fsize, fin); assert(insize == fsize);

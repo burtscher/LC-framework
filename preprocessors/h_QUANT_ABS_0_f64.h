@@ -63,7 +63,7 @@ static inline void h_QUANT_ABS_0_f64(int& size, byte*& data, const int paramc, c
     const long long bin = (long long)round(scaled);
     const double recon = bin * eb2;
 
-    if ((bin >= maxbin) || (bin <= -maxbin) || (fabs(orig_f) >= threshold) || (recon < orig_f - errorbound) || (recon > orig_f + errorbound) || (fabs(orig_f - recon) > errorbound) || (orig_f != orig_f)) {  // last check is to handle NaNs
+    if ((bin >= maxbin) || (bin <= -maxbin) || (fabs(orig_f) >= threshold) || (fabs(orig_f - recon) > errorbound) || (orig_f != orig_f)) {  // last check is to handle NaNs
       count++;  // informal only
       assert(((data_i[i] >> mantissabits) & 0x7ff) != 0);
     } else {
