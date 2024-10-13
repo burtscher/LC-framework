@@ -238,14 +238,14 @@ Predictors guess the next value by extrapolating it from prior values and then s
 
 **DIFF**: This component computes the difference sequence (also called "delta modulation") by subtracting the previous value from the current value and outputting the resulting difference. If neighboring values correlate with each other, this tends to produce a more compressible sequence.
 
-**DIFFMS**: This component computes the difference sequence like DIFF does but outputs the result in sign-magnitude format, which is often more compressible because it tends to produce values with many leading zero bits.
+**DIFFMS**: This component computes the difference sequence like DIFF does but outputs the result in magnitude-sign format, which is often more compressible because it tends to produce values with many leading zero bits.
 
 
 ### Reducers
 
 Reducers are the only components that can compress the data. They exploit various types of redundancies to do so.
 
-**CLOG**: This component breaks the data up into 32 subchunks, determines the smallest amount of leading zero bits of all values in a subchunk, records this count, and then stores only the remaining bits of each value. This compresses data with leading zero bits.
+**CLOG**: This component breaks the data up into 32 subchunks, determines the smallest number of leading zero bits of all values in a subchunk, records this count, and then stores only the remaining bits of each value. This compresses data with leading zero bits.
 
 **HCLOG**: This component works like CLOG except it first applies the TCMS transformation to all values in a subchunk that yield no leading zero bits when using CLOG.
 
