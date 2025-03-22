@@ -5,7 +5,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -261,5 +261,5 @@ with open(file, "r+") as f:
     f.truncate()
     f.write(contents)
 
-print("\nCompile with\ng++ -O3 -march=native -fopenmp -mno-fma -DUSE_CPU -I. -std=c++17 -o lc lc.cpp\n")
+print("\nCompile with\ng++ -O3 -march=native -fopenmp -mno-fma -ffp-contract=off -DUSE_CPU -I. -std=c++17 -o lc lc.cpp\n")
 print("Run the following command to see the usage message\n./lc")

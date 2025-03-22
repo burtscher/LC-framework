@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -44,9 +44,9 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 
 
 template <typename T>
-static __global__ void d_lorenzo_encode_1d(const T* const in, T* const out, const int size_in_T)
+static __global__ void d_lorenzo_encode_1d(const T* const in, T* const out, const long long size_in_T)
 {
-  const int tid = threadIdx.x + blockIdx.x * TPB;
+  const long long tid = threadIdx.x + (long long)blockIdx.x * TPB;
   __shared__ T shared_buf [TPB + 1];
   if (threadIdx.x == 0) shared_buf[0] = (tid == 0) ? 0 : in[tid - 1];
   if (tid < size_in_T) {
@@ -59,18 +59,18 @@ static __global__ void d_lorenzo_encode_1d(const T* const in, T* const out, cons
 }
 
 
-static inline void d_LOR1D_i32(int& size, byte*& data, const int paramc, const double paramv [])
+static inline void d_LOR1D_i32(long long& size, byte*& data, const int paramc, const double paramv [])
 {
   using type = int;
   type* in_t = (type*)data;
   // Check that size is correct
   if (size % sizeof(type) != 0) {
-    fprintf(stderr, "ERROR: size %d is not evenly divisible by type size %ld\n", size, sizeof(type));
+    fprintf(stderr, "ERROR: size %lld is not evenly divisible by type size %ld\n", size, sizeof(type));
     throw std::runtime_error("LC error");
   }
   type* d_encoded;
   if (cudaSuccess != cudaMalloc((void **)&d_encoded, size)) fprintf(stderr, "CUDA ERROR: could not allocate d_encoded\n");
-  int insize = size / sizeof(type);
+  long long insize = size / sizeof(type);
 
   // Encode
   const int blocks = (insize + TPB - 1) / TPB;
@@ -84,18 +84,18 @@ static inline void d_LOR1D_i32(int& size, byte*& data, const int paramc, const d
 }
 
 
-static inline void d_iLOR1D_i32(int& size, byte*& data, const int paramc, const double paramv [])
+static inline void d_iLOR1D_i32(long long& size, byte*& data, const int paramc, const double paramv [])
 {
   using type = int;
   type* in_t = (type*)data;
   // Check that size is correct
   if (size % sizeof(type) != 0) {
-    fprintf(stderr, "ERROR: size %d is not evenly divisible by type size %ld\n", size, sizeof(type));
+    fprintf(stderr, "ERROR: size %lld is not evenly divisible by type size %ld\n", size, sizeof(type));
     throw std::runtime_error("LC error");
   }
   type* d_decoded;
   if (cudaSuccess != cudaMalloc((void **)&d_decoded, size)) fprintf(stderr, "CUDA ERROR: could not allocate d_decoded\n");
-  int insize = size / sizeof(type);
+  long long insize = size / sizeof(type);
 
   // Determine temporary device storage requirements for inclusive prefix sum
   void* d_temp_storage = NULL;

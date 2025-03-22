@@ -5,7 +5,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -367,8 +367,8 @@ with open(dec_file_path, "w") as file:
 # get rid of extra comments
 remove_comments("compressor-standalone.cu")
 
-print("Compile encoder with\nnvcc -O3 -arch=sm_70 -fmad=false -Xcompiler \"-O3 -march=native -fopenmp -mno-fma\" -I. -o compress compressor-standalone.cu\n")
+print("Compile encoder with\nnvcc -O3 -arch=sm_70 -fmad=false -Xcompiler \"-O3 -march=native -fopenmp -mno-fma -ffp-contract=off\" -I. -std=c++17 -o compress compressor-standalone.cu\n")
 print("Run encoder with:\n./compress input_file_name compressed_file_name [y]\n")
-print("Compile decoder with\nnvcc -O3 -arch=sm_70 -fmad=false -Xcompiler \"-O3 -march=native -fopenmp -mno-fma\" -I. -o decompress decompressor-standalone.cu\n")
+print("Compile decoder with\nnvcc -O3 -arch=sm_70 -fmad=false -Xcompiler \"-O3 -march=native -fopenmp -mno-fma -ffp-contract=off\" -I. -std=c++17 -o decompress decompressor-standalone.cu\n")
 print("Run decoder with:\n./decompress compressed_file_name decompressed_file_name [y]\n")
 

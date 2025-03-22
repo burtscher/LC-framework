@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -37,20 +37,20 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 */
 
 
-static void MSE_f64(const int size, const byte* const __restrict__ recon, const byte* const __restrict__ orig, const int paramc, const double paramv [])
+static void MSE_f64(const long long size, const byte* const __restrict__ recon, const byte* const __restrict__ orig, const int paramc, const double paramv [])
 {
   using type = double;
 
-  if ((size % sizeof(type)) != 0) {fprintf(stderr, "ERROR: MSE_f64 requires data to be a multiple of %d bytes long\n", (int)sizeof(type)); throw std::runtime_error("LC error");}
+  if ((size % sizeof(type)) != 0) {fprintf(stderr, "ERROR: MSE_f64 requires data to be a multiple of %ld bytes long\n", sizeof(type)); throw std::runtime_error("LC error");}
   if (paramc != 1) {fprintf(stderr, "ERROR: MSE_f64 requires one parameter that specifies the maximum allowed mean squared error\n"); throw std::runtime_error("LC error");}
 
   const type* const orig_t = (type*)orig;
   const type* const recon_t = (type*)recon;
-  const int len = size / sizeof(type);
+  const long long len = size / sizeof(type);
   const type errorbound = paramv[0];
 
   double mse = 0;
-  for (int i = 0; i < len; i++) {
+  for (long long i = 0; i < len; i++) {
     const type diff = recon_t[i] - orig_t[i];
     mse += diff * diff;
   }

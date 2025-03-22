@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -44,23 +44,23 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 #endif
 
 
-static inline void h_LOR1D_i32(int& size, byte*& data, const int paramc, const double paramv [])
+static inline void h_LOR1D_i32(long long& size, byte*& data, const int paramc, const double paramv [])
 {
   using type = int;
   type* in_t = (type*)data;
   // Check that size is correct
   if (size % sizeof(type) != 0) {
-    fprintf(stderr, "ERROR: size %d is not evenly divisible by type size %ld\n", size, sizeof(type));
+    fprintf(stderr, "ERROR: size %lld is not evenly divisible by type size %ld\n", size, sizeof(type));
     throw std::runtime_error("LC error");
   }
-  int insize = size / sizeof(type);
+  long long insize = size / sizeof(type);
   type* out = new type[insize];
 
   // Encode
   if (insize > 0) {
     out[0] = in_t[0];
     #pragma omp parallel for default(none) shared(out, in_t, insize)
-    for (int i = 1; i < insize; i++) {
+    for (long long i = 1; i < insize; i++) {
       out[i] = in_t[i] - in_t[i - 1];
     }
   }
@@ -72,16 +72,16 @@ static inline void h_LOR1D_i32(int& size, byte*& data, const int paramc, const d
 }
 
 
-static inline void h_iLOR1D_i32(int& size, byte*& data, const int paramc, const double paramv [])
+static inline void h_iLOR1D_i32(long long& size, byte*& data, const int paramc, const double paramv [])
 {
   using type = int;
   type* in_t = (type*)data;
   // Check that size is correct
   if (size % sizeof(type) != 0) {
-    fprintf(stderr, "ERROR: size %d is not evenly divisible by type size %ld\n", size, sizeof(type));
+    fprintf(stderr, "ERROR: size %lld is not evenly divisible by type size %ld\n", size, sizeof(type));
     throw std::runtime_error("LC error");
   }
-  int insize = size / sizeof(type);
+  long long insize = size / sizeof(type);
   type* out = new type[insize];
 
   // Decode
@@ -91,12 +91,12 @@ static inline void h_iLOR1D_i32(int& size, byte*& data, const int paramc, const 
   {
     const int nthreads = omp_get_num_threads();
     const int my_rank = omp_get_thread_num();
-    const int my_start = my_rank * (long)insize / nthreads;
-    const int my_end = (my_rank + 1) * (long)insize / nthreads;
+    const long long my_start = my_rank * insize / nthreads;
+    const long long my_end = (my_rank + 1) * insize / nthreads;
 
     // Perform local prefix sum
     type sum = 0;
-    for (int i = my_start; i < my_end; i++) {
+    for (long long i = my_start; i < my_end; i++) {
       sum += in_t[i];
       out[i] = sum;
     }
@@ -112,7 +112,7 @@ static inline void h_iLOR1D_i32(int& size, byte*& data, const int paramc, const 
       correction += rightmost[i];
     }
     if (correction != 0) {
-      for (int i = my_start; i < my_end; i++) {
+      for (long long i = my_start; i < my_end; i++) {
         out[i] += correction;
       }
     }
@@ -121,7 +121,7 @@ static inline void h_iLOR1D_i32(int& size, byte*& data, const int paramc, const 
   delete [] rightmost;
   #else
   type sum = 0;
-  for (int i = 0; i < insize; i++) {
+  for (long long i = 0; i < insize; i++) {
     sum += in_t[i];
     out[i] = sum;
   }

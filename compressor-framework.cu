@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -53,6 +53,7 @@ static const int TPB = 512;  // threads per block [must be power of 2 and at lea
 #include <cassert>
 #include <stdexcept>
 #include <cuda.h>
+#include "include/macros.h"
 #include "include/sum_reduction.h"
 #include "include/max_scan.h"
 #include "include/prefix_sum.h"
@@ -104,51 +105,50 @@ static inline __device__ void s2g(void* const __restrict__ destination, const vo
 }
 
 
-static __device__ int g_chunk_counter;
+static __device__ unsigned long long g_chunk_counter;
 
 
 static __global__ void d_reset()
 {
-  g_chunk_counter = 0;
+  g_chunk_counter = 0LL;
 }
 
 
-static inline __device__ void propagate_carry(const int value, const int chunkID, volatile int* const __restrict__ fullcarry, int* const __restrict__ s_fullc)
+static inline __device__ void propagate_carry(const int value, const long long chunkID, volatile long long* const __restrict__ fullcarry, long long* const __restrict__ s_fullc)
 {
   if (threadIdx.x == TPB - 1) {  // last thread
-    fullcarry[chunkID] = (chunkID == 0) ? value : -value;
+    fullcarry[chunkID] = (chunkID == 0) ? (long long)value : (long long)-value;
   }
 
   if (chunkID != 0) {
     if (threadIdx.x + WS >= TPB) {  // last warp
       const int lane = threadIdx.x % WS;
-      const int cidm1ml = chunkID - 1 - lane;
-      int val = -1;
+      const long long cidm1ml = chunkID - 1 - lane;
+      long long val = -1;
       __syncwarp();  // not optional
       do {
         if (cidm1ml >= 0) {
           val = fullcarry[cidm1ml];
         }
-      } while ((__any_sync(~0, val == 0)) || (__all_sync(~0, val <= 0)));
+      } while ((__any(val == 0)) || (__all(val <= 0)));
 #if defined(WS) && (WS == 64)
-      const long long mask = __ballot_sync(~0, val > 0);
+      const long long mask = __ballot(val > 0);
       const int pos = __ffsll(mask) - 1;
 #else
-      const int mask = __ballot_sync(~0, val > 0);
+      const int mask = __ballot(val > 0);
       const int pos = __ffs(mask) - 1;
 #endif
-      int partc = (lane < pos) ? -val : 0;
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)
-      partc = __reduce_add_sync(~0, partc);
-#else
-      partc += __shfl_xor_sync(~0, partc, 1);
-      partc += __shfl_xor_sync(~0, partc, 2);
-      partc += __shfl_xor_sync(~0, partc, 4);
-      partc += __shfl_xor_sync(~0, partc, 8);
-      partc += __shfl_xor_sync(~0, partc, 16);
+      long long partc = (lane < pos) ? -val : 0;
+      partc += __shfl_xor(partc, 1);
+      partc += __shfl_xor(partc, 2);
+      partc += __shfl_xor(partc, 4);
+      partc += __shfl_xor(partc, 8);
+      partc += __shfl_xor(partc, 16);
+#if defined(WS) && (WS == 64)
+      partc += __shfl_xor(partc, 32);
 #endif
       if (lane == pos) {
-        const int fullc = partc + val;
+        const long long fullc = partc + val;
         fullcarry[chunkID] = fullc + value;
         *s_fullc = fullc;
       }
@@ -162,7 +162,7 @@ static __global__ __launch_bounds__(TPB, 3)
 #else
 static __global__ __launch_bounds__(TPB, 2)
 #endif
-void d_encode(const byte* const __restrict__ input, const int insize, byte* const __restrict__ output, int* const __restrict__ outsize, int* const __restrict__ fullcarry)
+void d_encode(const byte* const __restrict__ input, const long long insize, byte* const __restrict__ output, long long* const __restrict__ outsize, long long* const __restrict__ fullcarry)
 {
   // allocate shared memory buffer
   __shared__ long long chunk [3 * (CS / sizeof(long long))];
@@ -174,32 +174,32 @@ void d_encode(const byte* const __restrict__ input, const int insize, byte* cons
 
   // initialize
   const int tid = threadIdx.x;
-  const int last = 3 * (CS / sizeof(long long)) - 2 - WS;
-  const int chunks = (insize + CS - 1) / CS;  // round up
-  int* const head_out = (int*)output;
+  const long long last = 3 * (CS / sizeof(long long)) - 2 - WS;
+  const long long chunks = (insize + CS - 1) / CS;  // round up
+  long long* const head_out = (long long*)output;
   unsigned short* const size_out = (unsigned short*)&head_out[1];
   byte* const data_out = (byte*)&size_out[chunks];
 
   // loop over chunks
   do {
     // assign work dynamically
-    if (tid == 0) chunk[last] = atomicAdd(&g_chunk_counter, 1);
+    if (tid == 0) chunk[last] = atomicAdd(&g_chunk_counter, 1LL);
     __syncthreads();  // chunk[last] produced, chunk consumed
 
     // terminate if done
-    const int chunkID = chunk[last];
-    const int base = chunkID * CS;
+    const long long chunkID = chunk[last];
+    const long long base = chunkID * CS;
     if (base >= insize) break;
 
     // load chunk
-    const int osize = min(CS, insize - base);
+    const int osize = (int)min((long long)CS, insize - base);
     long long* const input_l = (long long*)&input[base];
     long long* const out_l = (long long*)out;
     for (int i = tid; i < osize / 8; i += TPB) {
       out_l[i] = input_l[i];
     }
     const int extra = osize % 8;
-    if (tid < extra) out[osize - extra + tid] = input[base + osize - extra + tid];
+    if (tid < extra) out[(long long)osize - (long long)extra + (long long)tid] = input[base + (long long)osize - (long long)extra + (long long)tid];
 
     // encode chunk
     __syncthreads();  // chunk produced, chunk[last] consumed
@@ -215,23 +215,23 @@ void d_encode(const byte* const __restrict__ input, const int insize, byte* cons
 
     // handle carry
     if (!good || (csize >= osize)) csize = osize;
-    propagate_carry(csize, chunkID, fullcarry, (int*)temp);
+    propagate_carry(csize, chunkID, fullcarry, (long long*)temp);
 
     // reload chunk if incompressible
     if (tid == 0) size_out[chunkID] = csize;
     if (csize == osize) {
       // store original data
       long long* const out_l = (long long*)out;
-      for (int i = tid; i < osize / 8; i += TPB) {
+      for (long long i = tid; i < osize / 8; i += TPB) {
         out_l[i] = input_l[i];
       }
       const int extra = osize % 8;
-      if (tid < extra) out[osize - extra + tid] = input[base + osize - extra + tid];
+      if (tid < extra) out[(long long)osize - (long long)extra + (long long)tid] = input[base + (long long)osize - (long long)extra + (long long)tid];
     }
     __syncthreads();  // "out" done, temp produced
 
     // store chunk
-    const int offs = (chunkID == 0) ? 0 : *((int*)temp);
+    const long long offs = (chunkID == 0) ? 0 : *((long long*)temp);
     s2g(&data_out[offs], out, csize);
 
     // finalize if last chunk
@@ -278,12 +278,11 @@ int main(int argc, char* argv [])
   fseek(fin, 0, SEEK_END);
   const long long fsize = ftell(fin);
   if (fsize <= 0) {fprintf(stderr, "ERROR: input file too small\n\n"); throw std::runtime_error("LC error");}
-  if (fsize >= 2147221529) {fprintf(stderr, "ERROR: input file too large\n\n"); throw std::runtime_error("LC error");}
   byte* const input = new byte [fsize];
   fseek(fin, 0, SEEK_SET);
-  const int insize = fread(input, 1, fsize, fin);  assert(insize == fsize);
+  const long long insize = fread(input, 1, fsize, fin);  assert(insize == fsize);
   fclose(fin);
-  printf("original size: %d bytes\n", insize);
+  printf("original size: %lld bytes\n", insize);
 
   // Check if the third argument is "y" to enable performance analysis
   char* perf_str = argv[3];
@@ -303,9 +302,9 @@ int main(int argc, char* argv [])
   const int SMs = deviceProp.multiProcessorCount;
   const int mTpSM = deviceProp.maxThreadsPerMultiProcessor;
   const int blocks = SMs * (mTpSM / TPB);
-  const int chunks = (insize + CS - 1) / CS;  // round up
+  const long long chunks = (insize + CS - 1) / CS;  // round up
   CheckCuda(__LINE__);
-  const int maxsize = 3 * sizeof(int) + chunks * sizeof(short) + chunks * CS;
+  const long long maxsize = 2 * sizeof(long long) + chunks * sizeof(short) + chunks * CS;
 
   // allocate GPU memory
   byte* dencoded;
@@ -315,21 +314,21 @@ int main(int argc, char* argv [])
   cudaMemcpy(d_input, input, insize, cudaMemcpyHostToDevice);
   byte* d_encoded;
   cudaMalloc((void **)&d_encoded, maxsize);
-  int* d_encsize;
-  cudaMalloc((void **)&d_encsize, sizeof(int));
+  long long* d_encsize;
+  cudaMalloc((void **)&d_encsize, sizeof(long long));
   CheckCuda(__LINE__);
 
   byte* dpreencdata;
   cudaMalloc((void **)&dpreencdata, insize);
   cudaMemcpy(dpreencdata, d_input, insize, cudaMemcpyDeviceToDevice);
-  int dpreencsize = insize;
+  long long dpreencsize = insize;
 
   if (perf) {
     /*##comp-warm-beg##*/
-    int* d_fullcarry;
-    cudaMalloc((void **)&d_fullcarry, chunks * sizeof(int));
+    long long* d_fullcarry;
+    cudaMalloc((void **)&d_fullcarry, chunks * sizeof(long long));
     d_reset<<<1, 1>>>();
-    cudaMemset(d_fullcarry, 0, chunks * sizeof(int));
+    cudaMemset(d_fullcarry, 0, chunks * sizeof(long long));
     d_encode<<<blocks, TPB>>>(dpreencdata, dpreencsize, d_encoded, d_encsize, d_fullcarry);
     cudaFree(d_fullcarry);
     cudaDeviceSynchronize();
@@ -339,7 +338,7 @@ int main(int argc, char* argv [])
     byte* d_preencdata;
     cudaMalloc((void **)&d_preencdata, insize);
     cudaMemcpy(d_preencdata, d_input, insize, cudaMemcpyDeviceToDevice);
-    int dpreencsize = insize;
+    long long dpreencsize = insize;
     /*##pre-warm-beg##*/
     /*##pre-warm-end##*/
     cudaFree(d_preencdata);
@@ -350,8 +349,8 @@ int main(int argc, char* argv [])
   dtimer.start();
   /*##pre-encoder-beg##*/
   /*##pre-encoder-end##*/
-  int* d_fullcarry;
-  cudaMalloc((void **)&d_fullcarry, chunks * sizeof(int));
+  long long* d_fullcarry;
+  cudaMalloc((void **)&d_fullcarry, chunks * sizeof(long long));
   d_reset<<<1, 1>>>();
   cudaMemset(d_fullcarry, 0, chunks * sizeof(byte));
   d_encode<<<blocks, TPB>>>(dpreencdata, dpreencsize, d_encoded, d_encsize, d_fullcarry);
@@ -360,10 +359,10 @@ int main(int argc, char* argv [])
   double runtime = dtimer.stop();
 
   // get encoded GPU result
-  int dencsize = 0;
-  cudaMemcpy(&dencsize, d_encsize, sizeof(int), cudaMemcpyDeviceToHost);
+  long long dencsize = 0;
+  cudaMemcpy(&dencsize, d_encsize, sizeof(long long), cudaMemcpyDeviceToHost);
   cudaMemcpy(dencoded, d_encoded, dencsize, cudaMemcpyDeviceToHost);
-  printf("encoded size: %d bytes\n", dencsize);
+  printf("encoded size: %lld bytes\n", dencsize);
   CheckCuda(__LINE__);
 
   const float CR = (100.0 * dencsize) / insize;

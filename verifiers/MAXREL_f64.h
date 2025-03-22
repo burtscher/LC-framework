@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 */
 
 
-static void MAXREL_f64(const int size, const byte* const __restrict__ recon, const byte* const __restrict__ orig, const int paramc, const double paramv [])
+static void MAXREL_f64(const long long size, const byte* const __restrict__ recon, const byte* const __restrict__ orig, const int paramc, const double paramv [])
 { 
   using type_f = double;
   using type_i = long long;
@@ -50,18 +50,18 @@ static void MAXREL_f64(const int size, const byte* const __restrict__ recon, con
 
   const type_f* const orig_f = (type_f*)orig;
   const type_f* const recon_f = (type_f*)recon;
-  const int len = size / sizeof(type_f);
+  const long long len = size / sizeof(type_f);
 
-  for (int i = 0; i < len; i++) {
+  for (long long i = 0; i < len; i++) {
     if ((orig_f[i] == 0) || (recon_f[i] == 0)) {  // at least one value is zero
       if (orig_f[i] != recon_f[i]) {
-        fprintf(stderr, "MAXREL_f64 ERROR: relative error bound of %e exceeded at position %d: value is '%e' vs '%e'\n\n", errorbound, i, recon_f[i], orig_f[i]);
+        fprintf(stderr, "MAXREL_f64 ERROR: relative error bound of %e exceeded at position %lld: value is '%e' vs '%e'\n\n", errorbound, i, recon_f[i], orig_f[i]);
         throw std::runtime_error("LC error");
       }
     } else if (!std::isfinite(orig_f[i]) || !std::isfinite(recon_f[i])) {  // at least one value is INF or NaN
       if (recon_f[i] != orig_f[i]) {
         if (!std::isnan(orig_f[i]) || !std::isnan(recon_f[i])) {  // at least one value isn't a NaN
-          fprintf(stderr, "MAXREL_f64 ERROR: relative error bound of %e exceeded at position %d: value is '%e' vs '%e'\n\n", errorbound, i, recon_f[i], orig_f[i]);
+          fprintf(stderr, "MAXREL_f64 ERROR: relative error bound of %e exceeded at position %lld: value is '%e' vs '%e'\n\n", errorbound, i, recon_f[i], orig_f[i]);
           throw std::runtime_error("LC error");
         }
       }
@@ -71,7 +71,7 @@ static void MAXREL_f64(const int size, const byte* const __restrict__ recon, con
       const type_f lower = abs_orig_f / (1 + errorbound);
       const type_f upper = abs_orig_f * (1 + errorbound);
       if ((std::signbit(orig_f[i]) != std::signbit(recon_f[i])) || (abs_recon_f < lower) || (abs_recon_f > upper)) {
-        fprintf(stderr, "MAXREL_f64 ERROR: relative error bound of %e exceeded at position %d: value is '%e' vs '%e'\n\n", errorbound, i, recon_f[i], orig_f[i]);
+        fprintf(stderr, "MAXREL_f64 ERROR: relative error bound of %e exceeded at position %lld: value is '%e' vs '%e'\n\n", errorbound, i, recon_f[i], orig_f[i]);
         throw std::runtime_error("LC error");
       }
     }

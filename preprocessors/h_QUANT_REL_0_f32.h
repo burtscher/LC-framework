@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -64,10 +64,10 @@ static inline float h_QUANT_REL_0_f32_pow2approxf(const float log_f)
 }
 
 
-static inline void h_QUANT_REL_0_f32(int& size, byte*& data, const int paramc, const double paramv [])
+static inline void h_QUANT_REL_0_f32(long long& size, byte*& data, const int paramc, const double paramv [])
 {
   if (size % sizeof(float) != 0) {fprintf(stderr, "QUANT_REL_0_f32 ERROR: size of input must be a multiple of %ld bytes\n", sizeof(float)); throw std::runtime_error("LC error");}
-  const int len = size / sizeof(float);
+  const long long len = size / sizeof(float);
   if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_REL_0_f32(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
   const float errorbound = paramv[0];
   const float threshold = (paramc == 2) ? paramv[1] : std::numeric_limits<float>::infinity();
@@ -84,7 +84,7 @@ static inline void h_QUANT_REL_0_f32(int& size, byte*& data, const int paramc, c
 
   int count = 0;
   #pragma omp parallel for default(none) shared(signexpomask, len, data_i, errorbound, log2eb, inv_log2eb, threshold, maxbin, mantissabits) reduction(+: count)
-  for (int i = 0; i < len; i++) {
+  for (long long i = 0; i < len; i++) {
     const int orig_i = data_i[i];
     const int abs_orig_i = orig_i & 0x7fff'ffff;
     const float abs_orig_f = *((float*)&abs_orig_i);
@@ -102,7 +102,7 @@ static inline void h_QUANT_REL_0_f32(int& size, byte*& data, const int paramc, c
       } else {  // normal value
         const float log_f = h_QUANT_REL_0_f32_log2approxf(abs_orig_f);
         const float scaled = log_f * inv_log2eb;
-        int bin = (int)roundf(scaled);
+        int bin = (int)std::round(scaled);
         const float abs_recon_f = h_QUANT_REL_0_f32_pow2approxf(bin * log2eb);
         const float lower = abs_orig_f / (1 + errorbound);
         const float upper = abs_orig_f * (1 + errorbound);
@@ -123,10 +123,10 @@ static inline void h_QUANT_REL_0_f32(int& size, byte*& data, const int paramc, c
 }
 
 
-static inline void h_iQUANT_REL_0_f32(int& size, byte*& data, const int paramc, const double paramv [])
+static inline void h_iQUANT_REL_0_f32(long long& size, byte*& data, const int paramc, const double paramv [])
 {
   if (size % sizeof(float) != 0) {fprintf(stderr, "QUANT_REL_0_f32 ERROR: size of input must be a multiple of %ld bytes\n", sizeof(float)); throw std::runtime_error("LC error");}
-  const int len = size / sizeof(float);
+  const long long len = size / sizeof(float);
   if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_REL_0_f32(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
   const float errorbound = paramv[0];
   if (errorbound < 1E-5f) {fprintf(stderr, "QUANT_REL_0_f32 ERROR: error_bound must be at least %e\n", 1E-5f); throw std::runtime_error("LC error");}  // log and exp are too inaccurate below this error bound
@@ -139,7 +139,7 @@ static inline void h_iQUANT_REL_0_f32(int& size, byte*& data, const int paramc, 
   const float log2eb = 2 * h_QUANT_REL_0_f32_log2approxf(1 + errorbound);
 
   #pragma omp parallel for default(none) shared(len, data_f, data_i, log2eb, signexpomask)
-  for (int i = 0; i < len; i++) {
+  for (long long i = 0; i < len; i++) {
     const int val = (data_i[i] + 1) ^ signexpomask;
     if (((val & signexpomask) == signexpomask) && ((val & ~signexpomask) != 0)) {  // is encoded value
       if (val == (signexpomask | 1)) {

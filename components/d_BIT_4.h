@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -53,13 +53,13 @@ static __device__ inline bool d_BIT_4(int& csize, byte in [CS], byte out [CS], b
   for (int i = tid; i < size; i += TPB) {
     unsigned int a = in_w[i];
 
-    unsigned int q = __shfl_xor_sync(~0, a, 16);
+    unsigned int q = __shfl_xor(a, 16);
     a = ((sublane & 16) == 0) ? __byte_perm(a, q, (3 << 12) | (2 << 8) | (7 << 4) | 6) : __byte_perm(a, q, (5 << 12) | (4 << 8) | (1 << 4) | 0);
 
-    q = __shfl_xor_sync(~0, a, 8);
+    q = __shfl_xor(a, 8);
     a = ((sublane & 8) == 0) ? __byte_perm(a, q, (3 << 12) | (7 << 8) | (1 << 4) | 5) : __byte_perm(a, q, (6 << 12) | (2 << 8) | (4 << 4) | 0);
 
-    q = __shfl_xor_sync(~0, a, 4);
+    q = __shfl_xor(a, 4);
     unsigned int mask = 0x0F0F0F0F;
     if ((sublane & 4) == 0) {
       a = (a & ~mask) | ((q >> 4) & mask);
@@ -67,7 +67,7 @@ static __device__ inline bool d_BIT_4(int& csize, byte in [CS], byte out [CS], b
       a = ((q << 4) & ~mask) | (a & mask);
     }
 
-    q = __shfl_xor_sync(~0, a, 2);
+    q = __shfl_xor(a, 2);
     mask = 0x33333333;
     if ((sublane & 2) == 0) {
       a = (a & ~mask) | ((q >> 2) & mask);
@@ -75,7 +75,7 @@ static __device__ inline bool d_BIT_4(int& csize, byte in [CS], byte out [CS], b
       a = ((q << 2) & ~mask) | (a & mask);
     }
 
-    q = __shfl_xor_sync(~0, a, 1);
+    q = __shfl_xor(a, 1);
     mask = 0x55555555;
     if ((sublane & 1) == 0) {
       a = (a & ~mask) | ((q >> 1) & mask);
@@ -106,13 +106,13 @@ static __device__ inline void d_iBIT_4(int& csize, byte in [CS], byte out [CS], 
   for (int i = tid; i < size; i += TPB) {
     unsigned int a = in_w[i / 32 + sublane * (size / 32)];
 
-    unsigned int q = __shfl_xor_sync(~0, a, 16);
+    unsigned int q = __shfl_xor(a, 16);
     a = ((sublane & 16) == 0) ? __byte_perm(a, q, (3 << 12) | (2 << 8) | (7 << 4) | 6) : __byte_perm(a, q, (5 << 12) | (4 << 8) | (1 << 4) | 0);
 
-    q = __shfl_xor_sync(~0, a, 8);
+    q = __shfl_xor(a, 8);
     a = ((sublane & 8) == 0) ? __byte_perm(a, q, (3 << 12) | (7 << 8) | (1 << 4) | 5) : __byte_perm(a, q, (6 << 12) | (2 << 8) | (4 << 4) | 0);
 
-    q = __shfl_xor_sync(~0, a, 4);
+    q = __shfl_xor(a, 4);
     unsigned int mask = 0x0F0F0F0F;
     if ((sublane & 4) == 0) {
       a = (a & ~mask) | ((q >> 4) & mask);
@@ -120,7 +120,7 @@ static __device__ inline void d_iBIT_4(int& csize, byte in [CS], byte out [CS], 
       a = (a & mask) | ((q << 4) & ~mask);
     }
 
-    q = __shfl_xor_sync(~0, a, 2);
+    q = __shfl_xor(a, 2);
     mask = 0x33333333;
     if ((sublane & 2) == 0) {
       a = (a & ~mask) | ((q >> 2) & mask);
@@ -128,7 +128,7 @@ static __device__ inline void d_iBIT_4(int& csize, byte in [CS], byte out [CS], 
       a = (a & mask) | ((q << 2) & ~mask);
     }
 
-    q = __shfl_xor_sync(~0, a, 1);
+    q = __shfl_xor(a, 1);
     mask = 0x55555555;
     if ((sublane & 1) == 0) {
       a = (a & ~mask) | ((q >> 1) & mask);

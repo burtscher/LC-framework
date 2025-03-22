@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -56,6 +56,9 @@ int main(int argc, char* argv [])
   #endif
 #else
   #ifndef USE_CPU
+    #if defined(__AMDGCN_WAVEFRONT_SIZE)
+    printf("AMD ");
+    #endif
   printf("GPU version\n");
   #else
   printf("Combined CPU + GPU version\n");
@@ -156,12 +159,12 @@ int main(int argc, char* argv [])
   fseek(fin, 0, SEEK_END);
   const long long fsize = ftell(fin);
   if (fsize <= 0) {fprintf(stderr, "ERROR: input file too small\n\n"); throw std::runtime_error("LC error");}
-  if (fsize >= 2147221529) {fprintf(stderr, "ERROR: input file too large\n\n"); throw std::runtime_error("LC error");}
+  if (fsize >= 9223372036854775807) {fprintf(stderr, "ERROR: input file too large\n\n"); throw std::runtime_error("LC error");}
   byte* const input = new byte [fsize];
   fseek(fin, 0, SEEK_SET);
-  const int insize = fread(input, 1, fsize, fin); assert(insize == fsize);
+  const long long insize = fread(input, 1, fsize, fin); assert(insize == fsize);
   fclose(fin);
-  printf("input size: %d bytes\n\n", insize);
+  printf("input size: %lld bytes\n\n", insize);
 
 #ifdef USE_GPU
   // copy input to GPU
@@ -233,22 +236,22 @@ int main(int argc, char* argv [])
   if (conf.warmup) {
     cudaMalloc((void **)&d_preencdata, insize);
     cudaMemcpy(d_preencdata, d_input, insize, cudaMemcpyDeviceToDevice);
-    int dpreencsize = insize;
+    long long dpreencsize = insize;
     d_preprocess_encode(dpreencsize, d_preencdata, prepros);
     cudaFree(d_preencdata);
   }
   cudaMalloc((void **)&d_preencdata, insize);
   cudaMemcpy(d_preencdata, d_input, insize, cudaMemcpyDeviceToDevice);
-  int dpreencsize = insize;
+  long long dpreencsize = insize;
   GPUTimer dtimer;
   dtimer.start();
   d_preprocess_encode(dpreencsize, d_preencdata, prepros);
   const double dpreenctime = (prepros.size() == 0) ? 0 : dtimer.stop();
   if (conf.speed) printf("GPU preprocessor encoding time: %.6f s\n", dpreenctime);
-  if (conf.size) printf("GPU preprocessor encoded size: %d bytes\n\n", dpreencsize);
+  if (conf.size) printf("GPU preprocessor encoded size: %lld bytes\n\n", dpreencsize);
 
   // time GPU preprocessor decoding
-  int dpredecsize = 0;
+  long long dpredecsize = 0;
   double dpredectime = 0;
   byte* d_predecdata = NULL;
   if (conf.decom) {
@@ -267,7 +270,7 @@ int main(int argc, char* argv [])
     dpredectime = (prepros.size() == 0) ? 0 : dtimer.stop();
     CheckCuda(__LINE__);
     if (conf.speed) printf("GPU preprocessor decoding time: %.6f s\n", dpredectime);
-    if (conf.size) printf("GPU preprocessor decoded size: %d bytes\n\n", dpredecsize);
+    if (conf.size) printf("GPU preprocessor decoded size: %lld bytes\n\n", dpredecsize);
   }
 #endif
 
@@ -276,22 +279,22 @@ int main(int argc, char* argv [])
   if (conf.warmup) {
     byte* hpreencdata = new byte [insize];
     std::copy(input, input + insize, hpreencdata);
-    int hpreencsize = insize;
+    long long hpreencsize = insize;
     h_preprocess_encode(hpreencsize, hpreencdata, prepros);
     delete [] hpreencdata;
   }
   byte* hpreencdata = new byte [insize];
   std::copy(input, input + insize, hpreencdata);
-  int hpreencsize = insize;
+  long long hpreencsize = insize;
   CPUTimer htimer;
   htimer.start();
   h_preprocess_encode(hpreencsize, hpreencdata, prepros);
   const double hpreenctime = (prepros.size() == 0) ? 0 : htimer.stop();
   if (conf.speed) printf("CPU preprocessor encoding time: %.6f s\n", hpreenctime);
-  if (conf.size) printf("CPU preprocessor encoded size: %d bytes\n\n", hpreencsize);
+  if (conf.size) printf("CPU preprocessor encoded size: %lld bytes\n\n", hpreencsize);
 
   // time CPU preprocessor decoding
-  int hpredecsize = 0;
+  long long hpredecsize = 0;
   double hpredectime = 0;
   byte* hpredecdata = NULL;
   if (conf.decom) {
@@ -309,7 +312,7 @@ int main(int argc, char* argv [])
     h_preprocess_decode(hpredecsize, hpredecdata, prepros);
     hpredectime = (prepros.size() == 0) ? 0 : htimer.stop();
     if (conf.speed) printf("CPU preprocessor decoding time: %.6f s\n", hpredectime);
-    if (conf.size) printf("CPU preprocessor decoded size: %d bytes\n\n", hpredecsize);
+    if (conf.size) printf("CPU preprocessor decoded size: %lld bytes\n\n", hpredecsize);
   }
 #endif
 
@@ -318,7 +321,7 @@ int main(int argc, char* argv [])
     bool bug = false;
 
 #ifdef USE_GPU
-    if (dpredecsize != insize) {fprintf(stderr, "ERROR: dpredec size wrong: is %d instead of %d\n\n", dpredecsize, insize); bug = true;}
+    if (dpredecsize != insize) {fprintf(stderr, "ERROR: dpredec size wrong: is %lld instead of %lld\n\n", dpredecsize, insize); bug = true;}
     byte* dpredecdata = new byte [dpredecsize];
     cudaMemcpy(dpredecdata, d_predecdata, dpredecsize, cudaMemcpyDeviceToHost);
     verify(std::min(insize, dpredecsize), dpredecdata, input, verifs);
@@ -331,7 +334,7 @@ int main(int argc, char* argv [])
 #endif
 
 #ifdef USE_CPU
-    if (hpredecsize != insize) {fprintf(stderr, "ERROR: hpredec size wrong: is %d instead of %d\n\n", hpredecsize, insize); bug = true;}
+    if (hpredecsize != insize) {fprintf(stderr, "ERROR: hpredec size wrong: is %lld instead of %lld\n\n", hpredecsize, insize); bug = true;}
     verify(std::min(insize, hpredecsize), hpredecdata, input, verifs);
 #ifndef USE_GPU
     if (!bug && (algorithms == 1)) {
@@ -346,10 +349,10 @@ int main(int argc, char* argv [])
 #ifdef USE_CPU
     byte* dpreencdata = new byte [dpreencsize];
     cudaMemcpy(dpreencdata, d_preencdata, dpreencsize, cudaMemcpyDeviceToHost);
-    if (dpreencsize != hpreencsize) {fprintf(stderr, "ERROR: hpreencsize and dpreencsize differ: %d vs %d\n\n", hpreencsize, dpreencsize); bug = true;}
-    for (int i = 0; i < std::min(hpreencsize, dpreencsize); i++) {
+    if (dpreencsize != hpreencsize) {fprintf(stderr, "ERROR: hpreencsize and dpreencsize differ: %lld vs %lld\n\n", hpreencsize, dpreencsize); bug = true;}
+    for (long long i = 0; i < std::min(hpreencsize, dpreencsize); i++) {
       if (dpreencdata[i] != hpreencdata[i]) {
-        fprintf(stderr, "ERROR: CPU and GPU preprocessor encoded results differ at pos %d: %x vs %x\n\n", i, hpreencdata[i], dpreencdata[i]);
+        fprintf(stderr, "ERROR: CPU and GPU preprocessor encoded results differ at pos %lld: %x vs %x\n\n", i, hpreencdata[i], dpreencdata[i]);
         bug = true;
         break;
       }
@@ -359,10 +362,10 @@ int main(int argc, char* argv [])
 
     dpredecdata = new byte [dpredecsize];
     cudaMemcpy(dpredecdata, d_predecdata, dpredecsize, cudaMemcpyDeviceToHost);
-    if (dpredecsize != hpredecsize) {fprintf(stderr, "ERROR: hpredecsize and dpredecsize differ: %d vs %d\n\n", hpredecsize, dpredecsize); bug = true;}
-    for (int i = 0; i < std::min(hpredecsize, dpredecsize); i++) {
+    if (dpredecsize != hpredecsize) {fprintf(stderr, "ERROR: hpredecsize and dpredecsize differ: %lld vs %lld\n\n", hpredecsize, dpredecsize); bug = true;}
+    for (long long i = 0; i < std::min(hpredecsize, dpredecsize); i++) {
       if (dpredecdata[i] != hpredecdata[i]) {
-        fprintf(stderr, "ERROR: CPU and GPU preprocessor decoded results differ at pos %d: %x vs %x\n\n", i, hpredecdata[i], dpredecdata[i]);
+        fprintf(stderr, "ERROR: CPU and GPU preprocessor decoded results differ at pos %lld: %x vs %x\n\n", i, hpredecdata[i], dpredecdata[i]);
         bug = true;
         break;
       }
@@ -389,7 +392,7 @@ int main(int argc, char* argv [])
     fres = fopen(fname.c_str(), "wt"); assert(fres != NULL);
     fprintf(fres, "LC Lossless Compression Framework v1.2\n");
     fprintf(fres, "input, %s\n", argv[1]);
-    fprintf(fres, "size [bytes], %d\n", insize);
+    fprintf(fres, "size [bytes], %lld\n", insize);
     time_t curtime;
     time(&curtime);
     fprintf(fres, "date/time, %s", ctime(&curtime));
@@ -437,34 +440,34 @@ int main(int argc, char* argv [])
 
 #ifdef USE_GPU
   // allocate GPU memory
-  const int dchunks = (dpreencsize + CS - 1) / CS;  // round up
-  const int dmaxsize = 3 * sizeof(int) + dchunks * sizeof(short) + dchunks * CS;  //MB: adjust later
+  const long long dchunks = (dpreencsize + CS - 1) / CS;  // round up
+  const long long dmaxsize = 2 * sizeof(long long) + dchunks * sizeof(short) + dchunks * CS;  //MB: adjust later
   byte* d_encoded;
   cudaMalloc((void **)&d_encoded, dmaxsize);
-  int* d_encsize;
-  cudaMalloc((void **)&d_encsize, sizeof(int));
+  long long* d_encsize;
+  cudaMalloc((void **)&d_encsize, sizeof(long long));
   byte* d_decoded;
   cudaMalloc((void **)&d_decoded, dpreencsize);
-  int* d_decsize;
-  cudaMalloc((void **)&d_decsize, sizeof(int));
+  long long* d_decsize;
+  cudaMalloc((void **)&d_decsize, sizeof(long long));
   CheckCuda(__LINE__);
 #endif
 
 #ifdef USE_CPU
   // allocate CPU memory
-  const int hchunks = (hpreencsize + CS - 1) / CS;  // round up
-  const int hmaxsize = 3 * sizeof(int) + hchunks * sizeof(short) + hchunks * CS;  //MB: adjust later
+  const long long hchunks = (hpreencsize + CS - 1) / CS;  // round up
+  const long long hmaxsize = 2 * sizeof(long long) + hchunks * sizeof(short) + hchunks * CS;  //MB: adjust later
   byte* const hencoded = new byte [hmaxsize];
-  int hencsize = 0;
+  long long hencsize = 0;
   byte* const hdecoded = new byte [hpreencsize];
-  int hdecsize = 0;
+  long long hdecsize = 0;
 #endif
 
 #ifdef USE_GPU
   // run GPU experiments
   float dbestCR = 100.0;
   unsigned long long dbestPipe = 0;
-  int dbestEncSize = insize;
+  long long dbestEncSize = insize;
   unsigned short* d_bestSize;
   cudaMalloc((void **)&d_bestSize, sizeof(unsigned short) * dchunks);
   initBestSize<<<1, TPB>>>(d_bestSize, dchunks);
@@ -476,7 +479,7 @@ int main(int argc, char* argv [])
   // run CPU experiments
   float hbestCR = 100.0;
   unsigned long long hbestPipe = 0;
-  int hbestEncSize = insize;
+  long long hbestEncSize = insize;
   unsigned short* const hbestSize = new unsigned short [hchunks];
   for (int i = 0; i < hchunks; i++) hbestSize[i] = CS;
   float henctime = -1;
@@ -518,10 +521,10 @@ int main(int argc, char* argv [])
 #ifdef USE_GPU
       // time GPU encoding
       if (conf.warmup) {
-        int* d_fullcarry;
-        cudaMalloc((void **)&d_fullcarry, dchunks * sizeof(int));
+        long long* d_fullcarry;
+        cudaMalloc((void **)&d_fullcarry, dchunks * sizeof(long long));
         d_reset<<<1, 1>>>();
-        cudaMemset(d_fullcarry, 0, dchunks * sizeof(int));
+        cudaMemset(d_fullcarry, 0, dchunks * sizeof(long long));
         d_encode<<<blocks, TPB>>>(chain, d_preencdata, dpreencsize, d_encoded, d_encsize, d_fullcarry);
         cudaFree(d_fullcarry);
         cudaDeviceSynchronize();
@@ -529,10 +532,10 @@ int main(int argc, char* argv [])
       }
       GPUTimer dtimer;
       dtimer.start();
-      int* d_fullcarry;
-      cudaMalloc((void **)&d_fullcarry, dchunks * sizeof(int));
+      long long* d_fullcarry;
+      cudaMalloc((void **)&d_fullcarry, dchunks * sizeof(long long));
       d_reset<<<1, 1>>>();
-      cudaMemset(d_fullcarry, 0, dchunks * sizeof(int));
+      cudaMemset(d_fullcarry, 0, dchunks * sizeof(long long));
       d_encode<<<blocks, TPB>>>(chain, d_preencdata, dpreencsize, d_encoded, d_encsize, d_fullcarry);
       cudaFree(d_fullcarry);
       cudaDeviceSynchronize();
@@ -543,17 +546,17 @@ int main(int argc, char* argv [])
       CheckCuda(__LINE__);
 
       // get encoded GPU result
-      int dencsize = 0;
-      cudaMemcpy(&dencsize, d_encsize, sizeof(int), cudaMemcpyDeviceToHost);
+      long long dencsize = 0;
+      cudaMemcpy(&dencsize, d_encsize, sizeof(long long), cudaMemcpyDeviceToHost);
       dthroughput = dencsize * 0.000000001 / denctime;
       if (conf.speed) printf("GPU encoding memory wr throughput: %8.3f Gbytes/s %8.1f%%\n", dthroughput, 100.0 * dthroughput / dmcthroughput);
-      if (conf.size) printf("GPU encoded size: %d bytes\n", dencsize);
+      if (conf.size) printf("GPU encoded size: %lld bytes\n", dencsize);
       CheckCuda(__LINE__);
 
       dbestChunkSize<<<1, TPB>>>(d_encoded, d_bestSize);
 
       // time GPU decoding
-      int ddecsize = 0;
+      long long ddecsize = 0;
       if (conf.decom) {
         if (conf.warmup) {
           d_reset<<<1, 1>>>();
@@ -578,14 +581,14 @@ int main(int argc, char* argv [])
         CheckCuda(__LINE__);
 
         // get decoded GPU result
-        cudaMemcpy(&ddecsize, d_decsize, sizeof(int), cudaMemcpyDeviceToHost);
-        if (conf.size) printf("GPU decoded size: %d bytes\n", ddecsize);
+        cudaMemcpy(&ddecsize, d_decsize, sizeof(long long), cudaMemcpyDeviceToHost);
+        if (conf.size) printf("GPU decoded size: %lld bytes\n", ddecsize);
         CheckCuda(__LINE__);
       }
 
       // print experiment result and record if best
       const float dCR = (100.0 * dencsize) / insize;
-      printf("compression: %6.2f%% %7.3fx  (%d bytes)\n", dCR, 100.0 / dCR, dencsize);
+      printf("compression: %6.2f%% %7.3fx  (%lld bytes)\n", dCR, 100.0 / dCR, dencsize);
       if (dbestCR > dCR) {
         dbestCR = dCR;
         dbestPipe = chain;
@@ -607,7 +610,7 @@ int main(int argc, char* argv [])
       if (conf.speed) printf("CPU encoding memory rd throughput: %8.3f Gbytes/s %8.1f%%\n", hthroughput, 100.0 * hthroughput / hmcthroughput);
       hthroughput = hencsize * 0.000000001 / henctime;
       if (conf.speed) printf("CPU encoding memory wr throughput: %8.3f Gbytes/s %8.1f%%\n", hthroughput, 100.0 * hthroughput / hmcthroughput);
-      if (conf.size) printf("CPU encoded size: %d bytes\n", hencsize);
+      if (conf.size) printf("CPU encoded size: %lld bytes\n", hencsize);
 
       hbestChunkSize(hencoded, hbestSize);
 
@@ -628,12 +631,12 @@ int main(int argc, char* argv [])
         if (conf.speed) printf("CPU decoding memory rd throughput: %8.3f Gbytes/s %8.1f%%\n", hthroughput, 100.0 * hthroughput / hmcthroughput);
         hthroughput = insize * 0.000000001 / hdectime;
         if (conf.speed) printf("CPU decoding memory wr throughput: %8.3f Gbytes/s %8.1f%%\n", hthroughput, 100.0 * hthroughput / hmcthroughput);
-        if (conf.size) printf("CPU decoded size: %d bytes\n", hdecsize);
+        if (conf.size) printf("CPU decoded size: %lld bytes\n", hdecsize);
       }
 
       // print experiment result and record if best
       const float hCR = (100.0 * hencsize) / insize;
-      printf("compression: %6.2f%% %7.3fx  (%d bytes)\n", hCR, 100.0 / hCR, hencsize);
+      printf("compression: %6.2f%% %7.3fx  (%lld bytes)\n", hCR, 100.0 / hCR, hencsize);
       if (hbestCR > hCR) {
         hbestCR = hCR;
         hbestPipe = chain;
@@ -644,10 +647,10 @@ int main(int argc, char* argv [])
       // print output
       if (conf.csv) {
 #ifdef USE_GPU
-        fprintf(fres, " %d", dencsize);
+        fprintf(fres, " %lld", dencsize);
 #else
   #ifdef USE_CPU
-        fprintf(fres, " %d", hencsize);
+        fprintf(fres, " %lld", hencsize);
   #endif
 #endif
         if (conf.decom) {
@@ -677,7 +680,7 @@ int main(int argc, char* argv [])
 #if defined(USE_CPU) || defined(USE_GPU)
       if ((algorithms == 1) && (strcmp(argv[2], "AL") == 0)) {
   #ifndef USE_CPU
-        const int hencsize = dencsize;  // hack
+        const long long hencsize = dencsize;  // hack
         byte* const hencoded = new byte [dencsize];  // hack
         cudaMemcpy(hencoded, d_encoded, dencsize, cudaMemcpyDeviceToHost);  // hack
   #endif
@@ -727,28 +730,28 @@ int main(int argc, char* argv [])
       bool bug = false;
       if (conf.verify && conf.decom) {
 #ifdef USE_GPU
-        if (ddecsize != dpreencsize) {fprintf(stderr, "ERROR: ddecode size wrong: is %d instead of %d\n\n", ddecsize, dpreencsize); bug = true;}
-        const int size = std::min(dpreencsize, ddecsize);
-        unsigned int* d_min_loc;
-        cudaMalloc(&d_min_loc, sizeof(unsigned int));
-        cudaMemset(d_min_loc, -1, sizeof(unsigned int));
+        if (ddecsize != dpreencsize) {fprintf(stderr, "ERROR: ddecode size wrong: is %lld instead of %lld\n\n", ddecsize, dpreencsize); bug = true;}
+        const long long size = std::min(dpreencsize, ddecsize);
+        unsigned long long* d_min_loc;
+        cudaMalloc(&d_min_loc, sizeof(unsigned long long));
+        cudaMemset(d_min_loc, -1, sizeof(unsigned long long));
         dcompareData<<<(size + TPB - 1) / TPB, TPB>>>(size, d_decoded, d_preencdata, d_min_loc);
-        unsigned int dmin_loc;
-        cudaMemcpy(&dmin_loc, d_min_loc, sizeof(unsigned int), cudaMemcpyDeviceToHost);
+        unsigned long long dmin_loc;
+        cudaMemcpy(&dmin_loc, d_min_loc, sizeof(unsigned long long), cudaMemcpyDeviceToHost);
         cudaFree(d_min_loc);
         if (dmin_loc < size) {
           byte data, corr;
           cudaMemcpy(&data, d_decoded + dmin_loc, sizeof(byte), cudaMemcpyDeviceToHost);
           cudaMemcpy(&corr, d_preencdata + dmin_loc, sizeof(byte), cudaMemcpyDeviceToHost);
-          fprintf(stderr, "ERROR: GPU decoded result wrong at pos %d: is %x instead of %x\n\n", dmin_loc, data, corr);
+          fprintf(stderr, "ERROR: GPU decoded result wrong at pos %lld: is %x instead of %x\n\n", dmin_loc, data, corr);
           bug = true;
         }
 #endif
 
 #ifdef USE_CPU
-        if (hdecsize != hpreencsize) {fprintf(stderr, "ERROR: hdecode size wrong: is %d instead of %d\n\n", hdecsize, hpreencsize); bug = true;}
-        for (int i = 0; i < std::min(hpreencsize, hdecsize); i++) {
-          if (hdecoded[i] != hpreencdata[i]) {fprintf(stderr, "ERROR: CPU decoded result wrong at pos %d: is %x instead of %x\n\n", i, hdecoded[i], hpreencdata[i]); bug = true; break;}
+        if (hdecsize != hpreencsize) {fprintf(stderr, "ERROR: hdecode size wrong: is %lld instead of %lld\n\n", hdecsize, hpreencsize); bug = true;}
+        for (long long i = 0; i < std::min(hpreencsize, hdecsize); i++) {
+          if (hdecoded[i] != hpreencdata[i]) {fprintf(stderr, "ERROR: CPU decoded result wrong at pos %lld: is %x instead of %x\n\n", i, hdecoded[i], hpreencdata[i]); bug = true; break;}
         }
 #endif
       }
@@ -758,9 +761,9 @@ int main(int argc, char* argv [])
       if (conf.verify) {
         byte* const dencoded = new byte [dencsize];
         cudaMemcpy(dencoded, d_encoded, dencsize, cudaMemcpyDeviceToHost);
-        if (hencsize != dencsize) {fprintf(stderr, "ERROR: hencsize and dencsize differ: %d vs %d\n\n", hencsize, dencsize); bug = true;}
-        for (int i = 0; i < std::min(hencsize, dencsize); i++) {
-          if (hencoded[i] != dencoded[i]) {fprintf(stderr, "ERROR: CPU and GPU encoded results differ at pos %d: %x vs %x\n\n", i, hencoded[i], dencoded[i]); bug = true; break;}
+        if (hencsize != dencsize) {fprintf(stderr, "ERROR: hencsize and dencsize differ: %lld vs %lld\n\n", hencsize, dencsize); bug = true;}
+        for (long long i = 0; i < std::min(hencsize, dencsize); i++) {
+          if (hencoded[i] != dencoded[i]) {fprintf(stderr, "ERROR: CPU and GPU encoded results differ at pos %lld: %x vs %x\n\n", i, hencoded[i], dencoded[i]); bug = true; break;}
         }
         delete [] dencoded;
       }
@@ -821,7 +824,7 @@ int main(int argc, char* argv [])
     int dbestLen = 0;
     unsigned short* const dbestSize = new unsigned short [dchunks];
     cudaMemcpy(dbestSize, d_bestSize, dchunks * sizeof(unsigned short), cudaMemcpyDeviceToHost);
-    for (int i = 0; i < dchunks; i++) dbestLen += dbestSize[i];
+    for (long long i = 0; i < dchunks; i++) dbestLen += dbestSize[i];
     delete [] dbestSize;
     dbestLen += 6 + 2 * dchunks + 4 * dchunks;  // 6-byte header, 2 bytes to store size, assume 4 bytes to store algorithm
     const float dbestPC = (100.0 * dbestLen) / insize;
@@ -829,7 +832,7 @@ int main(int argc, char* argv [])
     printf("Overall best\n------------\n");
     printf("preprocs: %s\n", getPreprocessors(prepros).c_str());
     printf("pipeline: %s\n", getPipeline(dbestPipe, stages).c_str());
-    printf("compression: %6.2f%% %7.3fx  (%d bytes)\n", dbestCR, 100.0 / dbestCR, dbestEncSize);
+    printf("compression: %6.2f%% %7.3fx  (%lld bytes)\n", dbestCR, 100.0 / dbestCR, dbestEncSize);
     printf("per chunk:   %6.2f%% %7.3fx\n\n", dbestPC, 100.0 / dbestPC);
 #endif
 
@@ -842,7 +845,7 @@ int main(int argc, char* argv [])
     printf("Overall best\n------------\n");
     printf("preprocs: %s\n", getPreprocessors(prepros).c_str());
     printf("pipeline: %s\n", getPipeline(hbestPipe, stages).c_str());
-    printf("compression: %6.2f%% %7.3fx  (%d bytes)\n", hbestCR, 100.0 / hbestCR, hbestEncSize);
+    printf("compression: %6.2f%% %7.3fx  (%lld bytes)\n", hbestCR, 100.0 / hbestCR, hbestEncSize);
     printf("per chunk:   %6.2f%% %7.3fx\n\n", hbestPC, 100.0 / hbestPC);
 #endif
 
@@ -850,7 +853,7 @@ int main(int argc, char* argv [])
 #ifdef USE_GPU
       printf("Pareto device encoding\n----------------------    *                       *\n");
       std::sort(data.begin(), data.end(), compareElemDencThru);
-      for (int i = 0; i < data.size(); i++) {
+      for (long long i = 0; i < data.size(); i++) {
         bool ok = true;
         if (data[i].CR <= 1.0f) {
           ok = false;
@@ -871,7 +874,7 @@ int main(int argc, char* argv [])
 
       printf("Pareto device decoding\n----------------------    *                               *\n");
       std::sort(data.begin(), data.end(), compareElemDdecThru);
-      for (int i = 0; i < data.size(); i++) {
+      for (long long i = 0; i < data.size(); i++) {
         bool ok = true;
         if (data[i].CR <= 1.0f) {
           ok = false;

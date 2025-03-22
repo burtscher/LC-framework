@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -71,7 +71,7 @@ static __device__ inline double d_QUANT_REL_R_f64_pow2approx(const double log_f)
 }
 
 
-static __global__ void d_QUANT_REL_R_f64_kernel(const int len, byte* const __restrict__ data, const double errorbound, const double log2eb, const double inv_log2eb, const double threshold)
+static __global__ void d_QUANT_REL_R_f64_kernel(const long long len, byte* const __restrict__ data, const double errorbound, const double log2eb, const double inv_log2eb, const double threshold)
 {
   long long* const data_i = (long long*)data;
 
@@ -81,7 +81,7 @@ static __global__ void d_QUANT_REL_R_f64_kernel(const int len, byte* const __res
   const long long mask = (1LL << mantissabits) - 1;
   const double inv_mask = 1.0 / mask;
 
-  const int idx = threadIdx.x + blockIdx.x * TPB;
+  const long long idx = threadIdx.x + (long long)blockIdx.x * TPB;
   if (idx < len) {
     const long long orig_i = data_i[idx];
     const long long abs_orig_i = orig_i & 0x7fff'ffff'ffff'ffffLL;
@@ -100,7 +100,7 @@ static __global__ void d_QUANT_REL_R_f64_kernel(const int len, byte* const __res
       } else {  // normal value
         const double log_f = d_QUANT_REL_R_f64_log2approx(abs_orig_f);
         const double scaled = log_f * inv_log2eb;
-        long long bin = (long long)roundf(scaled);
+        long long bin = (long long)std::round(scaled);
         const long long rnd1 = d_QUANT_REL_R_f64_hash(bin + idx + 37);
         const long long rnd2 = d_QUANT_REL_R_f64_hash((bin >> 32) - idx - 37);
         const double rnd = inv_mask * (((rnd2 << 32) | rnd1) & mask) - 0.5;  // random noise
@@ -120,7 +120,7 @@ static __global__ void d_QUANT_REL_R_f64_kernel(const int len, byte* const __res
 }
 
 
-static __global__ void d_iQUANT_REL_R_f64_kernel(const int len, byte* const __restrict__ data, const double errorbound, const double log2eb)
+static __global__ void d_iQUANT_REL_R_f64_kernel(const long long len, byte* const __restrict__ data, const double errorbound, const double log2eb)
 {
   double* const data_f = (double*)data;
   long long* const data_i = (long long*)data;
@@ -130,7 +130,7 @@ static __global__ void d_iQUANT_REL_R_f64_kernel(const int len, byte* const __re
   const long long mask = (1LL << mantissabits) - 1;
   const double inv_mask = 1.0 / mask;
 
-  const int idx = threadIdx.x + blockIdx.x * TPB;
+  const long long idx = threadIdx.x + (long long)blockIdx.x * TPB;
   if (idx < len) {
     const long long val = (data_i[idx] + 1) ^ signexpomask;
     if (((val & signexpomask) == signexpomask) && ((val & ~signexpomask) != 0)) {  // is encoded value
@@ -152,10 +152,10 @@ static __global__ void d_iQUANT_REL_R_f64_kernel(const int len, byte* const __re
 }
 
 
-static inline void d_QUANT_REL_R_f64(int& size, byte*& data, const int paramc, const double paramv [])
+static inline void d_QUANT_REL_R_f64(long long& size, byte*& data, const int paramc, const double paramv [])
 {
   if (size % sizeof(double) != 0) {fprintf(stderr, "QUANT_REL_R_f64: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(double)); throw std::runtime_error("LC error");}
-  const int len = size / sizeof(double);
+  const long long len = size / sizeof(double);
   if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_REL_R_f64(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
   const double errorbound = paramv[0];
   const double threshold = (paramc == 2) ? paramv[1] : std::numeric_limits<double>::infinity();
@@ -169,10 +169,10 @@ static inline void d_QUANT_REL_R_f64(int& size, byte*& data, const int paramc, c
 }
 
 
-static inline void d_iQUANT_REL_R_f64(int& size, byte*& data, const int paramc, const double paramv [])
+static inline void d_iQUANT_REL_R_f64(long long& size, byte*& data, const int paramc, const double paramv [])
 {
   if (size % sizeof(double) != 0) {fprintf(stderr, "QUANT_REL_R_f64: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(double)); throw std::runtime_error("LC error");}
-  const int len = size / sizeof(double);
+  const long long len = size / sizeof(double);
   if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_REL_R_f64(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
   const double errorbound = paramv[0];
   if (errorbound < 1E-7) {fprintf(stderr, "QUANT_REL_R_f64: ERROR: error_bound must be at least %e\n", 1E-7); throw std::runtime_error("LC error");}  // minimum positive normalized value

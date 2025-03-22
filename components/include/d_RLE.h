@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -84,7 +84,7 @@ static __device__ inline bool d_RLE(int& csize, byte in [CS], byte out [CS], byt
 
   // compute inclusive max scan and make exclusive (with -1)
   const int msres = block_max_scan(loc, &s_tmp[0]);
-  int prevmax = __shfl_up_sync(~0, msres, 1);
+  int prevmax = __shfl_up(msres, 1);
   if (lane == 0) prevmax = (warp == 0) ? -1 : s_tmp[warp - 1];
 
   // output non-repeating values and determine number of counters
@@ -174,21 +174,21 @@ static __device__ inline void d_iRLE(int& csize, byte in [CS], byte out [CS], by
       wsum += repeat;
       if ((rep & 0x80) == 0) rsum += repeat;
     }
-    rsum += __shfl_xor_sync(~0, rsum, 1);
-    rsum += __shfl_xor_sync(~0, rsum, 2);
-    rsum += __shfl_xor_sync(~0, rsum, 4);
-    rsum += __shfl_xor_sync(~0, rsum, 8);
-    rsum += __shfl_xor_sync(~0, rsum, 16);
+    rsum += __shfl_xor(rsum, 1);
+    rsum += __shfl_xor(rsum, 2);
+    rsum += __shfl_xor(rsum, 4);
+    rsum += __shfl_xor(rsum, 8);
+    rsum += __shfl_xor(rsum, 16);
 #if defined(WS) && (WS == 64)
-    rsum += __shfl_xor_sync(~0, rsum, 32);
+    rsum += __shfl_xor(rsum, 32);
 #endif
-    wsum += __shfl_xor_sync(~0, wsum, 1);
-    wsum += __shfl_xor_sync(~0, wsum, 2);
-    wsum += __shfl_xor_sync(~0, wsum, 4);
-    wsum += __shfl_xor_sync(~0, wsum, 8);
-    wsum += __shfl_xor_sync(~0, wsum, 16);
+    wsum += __shfl_xor(wsum, 1);
+    wsum += __shfl_xor(wsum, 2);
+    wsum += __shfl_xor(wsum, 4);
+    wsum += __shfl_xor(wsum, 8);
+    wsum += __shfl_xor(wsum, 16);
 #if defined(WS) && (WS == 64)
-    wsum += __shfl_xor_sync(~0, wsum, 32);
+    wsum += __shfl_xor(wsum, 32);
 #endif
     rpos += rsum;
     wpos += wsum;

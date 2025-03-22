@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -40,10 +40,10 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 #include <limits>
 
 
-static inline void h_QUANT_NOA_0_f32(int& size, byte*& data, const int paramc, const double paramv [])
+static inline void h_QUANT_NOA_0_f32(long long& size, byte*& data, const int paramc, const double paramv [])
 {
   if (size % sizeof(float) != 0) {fprintf(stderr, "QUANT_NOA_0_f32: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(float)); throw std::runtime_error("LC error");}
-  const int len = size / sizeof(float);
+  const long long len = size / sizeof(float);
   if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_NOA_0_f32(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
   const float errorbound = paramv[0];
   const float threshold = (paramc == 2) ? paramv[1] : std::numeric_limits<float>::infinity();
@@ -55,7 +55,7 @@ static inline void h_QUANT_NOA_0_f32(int& size, byte*& data, const int paramc, c
   float maxf, minf;
   maxf = minf = orig_data_f[0];
   #pragma omp parallel for default(none) shared(len, orig_data_f) reduction(max:maxf) reduction(min:minf)
-  for (int i = 0; i < len; i++) {
+  for (long long i = 0; i < len; i++) {
     const float orig_val = orig_data_f[i];
     if (std::isfinite(orig_val)) {
       maxf = std::max(orig_val, maxf);
@@ -75,13 +75,13 @@ static inline void h_QUANT_NOA_0_f32(int& size, byte*& data, const int paramc, c
 
   int count = 0;
   #pragma omp parallel for default(none) shared(len, data, data_i, data_f, orig_data_f, adj_eb, eb2, inv_eb2, threshold, maxbin, mantissabits) reduction(+: count)
-  for (int i = 0; i < len; i++) {
+  for (long long i = 0; i < len; i++) {
     const float orig_f = orig_data_f[i];
     const float scaled = orig_f * inv_eb2;
-    const int bin = (int)roundf(scaled);
+    const int bin = (int)std::round(scaled);
     const float recon = bin * eb2;
 
-    if ((bin >= maxbin) || (bin <= -maxbin) || (fabsf(orig_f) >= threshold) || (fabsf(orig_f - recon) > adj_eb) || (orig_f != orig_f)) {  // last check is to handle NaNs
+    if ((bin >= maxbin) || (bin <= -maxbin) || (std::abs(orig_f) >= threshold) || (std::abs(orig_f - recon) > adj_eb) || (orig_f != orig_f)) {  // last check is to handle NaNs
       count++;  // informal only
       assert(((((int*)data)[i] >> mantissabits) & 0xff) != 0);
       data_f[i] = orig_f;
@@ -98,10 +98,10 @@ static inline void h_QUANT_NOA_0_f32(int& size, byte*& data, const int paramc, c
 }
 
 
-static inline void h_iQUANT_NOA_0_f32(int& size, byte*& data, const int paramc, const double paramv [])
+static inline void h_iQUANT_NOA_0_f32(long long& size, byte*& data, const int paramc, const double paramv [])
 {
   if (size % sizeof(float) != 0) {fprintf(stderr, "QUANT_NOA_0_f32: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(float)); throw std::runtime_error("LC error");}
-  const int len = size / sizeof(float) - 1;
+  const long long len = size / sizeof(float) - 1;
   if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_NOA_0_f32(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
 
   float* const data_f = (float*)data;
@@ -113,7 +113,7 @@ static inline void h_iQUANT_NOA_0_f32(int& size, byte*& data, const int paramc, 
   const float eb2 = 2 * errorbound;
 
   #pragma omp parallel for default(none) shared(len, data_f, data_i, eb2, mantissabits)
-  for (int i = 0; i < len; i++) {
+  for (long long i = 0; i < len; i++) {
     int bin = data_i[i];
     if ((0 <= bin) && (bin < (1 << mantissabits))) {  // is encoded value
       bin = (bin >> 1) ^ (((bin << 31) >> 31));  // TCMS decoding

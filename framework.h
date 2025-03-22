@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -62,6 +62,11 @@ static const int max_stages = 8;  // cannot be more than 8
 #include <stdexcept>
 #include <sys/time.h>
 
+
+#if defined(_OPENMP)
+#include <omp.h>
+#endif
+
 #include "include/consts.h"
 #ifndef USE_GPU
   #ifndef USE_CPU
@@ -72,6 +77,13 @@ static const int max_stages = 8;  // cannot be more than 8
   #endif
 #else
   #include <cuda.h>
+  #if !defined(__HIPCC__)
+  #include <cuda/std/limits>
+  #endif
+  #if defined(__CUDA_ARCH__)
+  #include <cuda/atomic>  // a CUDA-only library that cannot be automatically replaced by HIPIFY
+  #endif
+  #include "include/macros.h"
   #include "include/max_reduction.h"
   #include "include/max_scan.h"
   #include "include/prefix_sum.h"
@@ -88,7 +100,7 @@ static const int max_stages = 8;  // cannot be more than 8
 #include "verifiers/include/verifiers.h"
 
 
-static void verify(const int size, const byte* const recon, const byte* const orig, std::vector<std::pair<byte, std::vector<double>>> verifs)
+static void verify(const long long size, const byte* const recon, const byte* const orig, std::vector<std::pair<byte, std::vector<double>>> verifs)
 {
   for (int i = 0; i < verifs.size(); i++) {
     std::vector<double> params = verifs[i].second;
@@ -105,7 +117,7 @@ static void verify(const int size, const byte* const recon, const byte* const or
 
 
 #ifdef USE_GPU
-static void d_preprocess_encode(int& dpreencsize, byte*& dpreencdata, std::vector<std::pair<byte, std::vector<double>>> prepros)
+static void d_preprocess_encode(long long& dpreencsize, byte*& dpreencdata, std::vector<std::pair<byte, std::vector<double>>> prepros)
 {
   for (int i = 0; i < prepros.size(); i++) {
     std::vector<double> params = prepros[i].second;
@@ -121,7 +133,7 @@ static void d_preprocess_encode(int& dpreencsize, byte*& dpreencdata, std::vecto
 }
 
 
-static void d_preprocess_decode(int& dpredecsize, byte*& dpredecdata, std::vector<std::pair<byte, std::vector<double>>> prepros)
+static void d_preprocess_decode(long long& dpredecsize, byte*& dpredecdata, std::vector<std::pair<byte, std::vector<double>>> prepros)
 {
   for (int i = prepros.size() - 1; i >= 0; i--) {
     std::vector<double> params = prepros[i].second;
@@ -135,11 +147,44 @@ static void d_preprocess_decode(int& dpredecsize, byte*& dpredecdata, std::vecto
     }
   }
 }
-#endif
+
+
+#if defined(__CUDA_ARCH__)
+
+template <typename T>
+__device__ inline T atomicRead(T* const addr)
+{
+  return ((cuda::atomic<T>*)addr)->load(cuda::memory_order_relaxed);
+}
+
+
+template <typename T>
+__device__ inline void atomicWrite(T* const addr, const T val)
+{
+  ((cuda::atomic<T>*)addr)->store(val, cuda::memory_order_relaxed);
+}
+
+#else
+
+template <typename T>
+__device__ inline T atomicRead(T* const addr)
+{
+  return *((volatile T*)addr);  // AMD hack
+}
+
+
+template <typename T>
+__device__ inline void atomicWrite(T* const addr, const T val)
+{
+  *((volatile T*)addr) = val;  // AMD hack
+}
+
+#endif /* defined(__CUDA_ARCH__) */
+#endif /* USE_GPU */
 
 
 #ifdef USE_CPU
-static void h_preprocess_encode(int& hpreencsize, byte*& hpreencdata, std::vector<std::pair<byte, std::vector<double>>> prepros)
+static void h_preprocess_encode(long long& hpreencsize, byte*& hpreencdata, std::vector<std::pair<byte, std::vector<double>>> prepros)
 {
   for (int i = 0; i < prepros.size(); i++) {
     std::vector<double> params = prepros[i].second;
@@ -155,7 +200,7 @@ static void h_preprocess_encode(int& hpreencsize, byte*& hpreencdata, std::vecto
 }
 
 
-static void h_preprocess_decode(int& hpredecsize, byte*& hpredecdata, std::vector<std::pair<byte, std::vector<double>>> prepros)
+static void h_preprocess_decode(long long& hpredecsize, byte*& hpredecdata, std::vector<std::pair<byte, std::vector<double>>> prepros)
 {
   for (int i = prepros.size() - 1; i >= 0; i--) {
     std::vector<double> params = prepros[i].second;
@@ -194,60 +239,59 @@ static void __global__ dbestChunkSize(const byte* const __restrict__ input, unsi
 }
 
 
-static void __global__ dcompareData(const int size, const byte* const __restrict__ data1, const byte* const __restrict__ data2, unsigned int* const __restrict__ min_loc)
+static void __global__ dcompareData(const long long size, const byte* const __restrict__ data1, const byte* const __restrict__ data2, unsigned long long* const __restrict__ min_loc)
 {
-  const int i = threadIdx.x + blockIdx.x * TPB;
+  const long long i = threadIdx.x + (long long)blockIdx.x * TPB;
   if (i < size) {
     if (data1[i] != data2[i]) atomicMin(min_loc, i);
   }
 }
 
 
-static __device__ int g_chunk_counter;
+static __device__ unsigned long long g_chunk_counter;
 
 
 static __global__ void d_reset()
 {
-  g_chunk_counter = 0;
+  g_chunk_counter = 0LL;
 }
 
-static inline __device__ void propagate_carry(const int value, const int chunkID, volatile int* const __restrict__ fullcarry, int* const __restrict__ s_fullc)
+static inline __device__ void propagate_carry(const int value, const long long chunkID, long long* const __restrict__ fullcarry, long long* const __restrict__ s_fullc)
 {
   if (threadIdx.x == TPB - 1) {  // last thread
-    fullcarry[chunkID] = (chunkID == 0) ? value : -value;
+    atomicWrite(&fullcarry[chunkID], (chunkID == 0) ? (long long)value : (long long)-value);
   }
 
   if (chunkID != 0) {
     if (threadIdx.x + WS >= TPB) {  // last warp
       const int lane = threadIdx.x % WS;
-      const int cidm1ml = chunkID - 1 - lane;
-      int val = -1;
+      const long long cidm1ml = chunkID - 1 - lane;
+      long long val = -1;
       __syncwarp();  // not optional
       do {
         if (cidm1ml >= 0) {
-          val = fullcarry[cidm1ml];
+          val = atomicRead(&fullcarry[cidm1ml]);
         }
-      } while ((__any_sync(~0, val == 0)) || (__all_sync(~0, val <= 0)));
+      } while ((__any(val == 0)) || (__all(val <= 0)));
 #if defined(WS) && (WS == 64)
-      const long long mask = __ballot_sync(~0, val > 0);
+      const long long mask = __ballot(val > 0);
       const int pos = __ffsll(mask) - 1;
 #else
-      const int mask = __ballot_sync(~0, val > 0);
+      const int mask = __ballot(val > 0);
       const int pos = __ffs(mask) - 1;
 #endif
-      int partc = (lane < pos) ? -val : 0;
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)
-      partc = __reduce_add_sync(~0, partc);
-#else
-      partc += __shfl_xor_sync(~0, partc, 1);
-      partc += __shfl_xor_sync(~0, partc, 2);
-      partc += __shfl_xor_sync(~0, partc, 4);
-      partc += __shfl_xor_sync(~0, partc, 8);
-      partc += __shfl_xor_sync(~0, partc, 16);
+      long long partc = (lane < pos) ? -val : 0;
+      partc += __shfl_xor(partc, 1);
+      partc += __shfl_xor(partc, 2);
+      partc += __shfl_xor(partc, 4);
+      partc += __shfl_xor(partc, 8);
+      partc += __shfl_xor(partc, 16);
+#if defined(WS) && (WS == 64)
+      partc += __shfl_xor(partc, 32);
 #endif
       if (lane == pos) {
-        const int fullc = partc + val;
-        fullcarry[chunkID] = fullc + value;
+        const long long fullc = partc + val;
+        atomicWrite(&fullcarry[chunkID], fullc + value);
         *s_fullc = fullc;
       }
     }
@@ -358,7 +402,7 @@ static __global__ __launch_bounds__(TPB, 3)
 #else
 static __global__ __launch_bounds__(TPB, 2)
 #endif
-void d_encode(const unsigned long long chain, const byte* const __restrict__ input, const int insize, byte* const __restrict__ output, int* const __restrict__ outsize, int* const __restrict__ fullcarry)
+void d_encode(const unsigned long long chain, const byte* const __restrict__ input, const long long insize, byte* const __restrict__ output, long long* const __restrict__ outsize, long long* const __restrict__ fullcarry)
 {
   // allocate shared memory buffer
   __shared__ long long chunk [3 * (CS / sizeof(long long))];
@@ -370,32 +414,32 @@ void d_encode(const unsigned long long chain, const byte* const __restrict__ inp
 
   // initialize
   const int tid = threadIdx.x;
-  const int last = 3 * (CS / sizeof(long long)) - 2 - WS;
-  const int chunks = (insize + CS - 1) / CS;  // round up
-  int* const head_out = (int*)output;
+  const long long last = 3 * (CS / sizeof(long long)) - 2 - WS;
+  const long long chunks = (insize + CS - 1) / CS;  // round up
+  long long* const head_out = (long long*)output;
   unsigned short* const size_out = (unsigned short*)&head_out[1];
   byte* const data_out = (byte*)&size_out[chunks];
 
   // loop over chunks
   do {
     // assign work dynamically
-    if (tid == 0) chunk[last] = atomicAdd(&g_chunk_counter, 1);
+    if (tid == 0) chunk[last] = atomicAdd(&g_chunk_counter, 1LL);
     __syncthreads();  // chunk[last] produced, chunk consumed
 
     // terminate if done
-    const int chunkID = chunk[last];
-    const int base = chunkID * CS;
+    const long long chunkID = chunk[last];
+    const long long base = chunkID * CS;
     if (base >= insize) break;
 
     // load chunk
-    const int osize = min(CS, insize - base);
+    const int osize = (int)min((long long)CS, insize - base);
     long long* const input_l = (long long*)&input[base];
     long long* const out_l = (long long*)out;
     for (int i = tid; i < osize / 8; i += TPB) {
       out_l[i] = input_l[i];
     }
     const int extra = osize % 8;
-    if (tid < extra) out[osize - extra + tid] = input[base + osize - extra + tid];
+    if (tid < extra) out[(long long)osize - (long long)extra + (long long)tid] = input[base + (long long)osize - (long long)extra + (long long)tid];
 
     // encode chunk
     int csize = osize;
@@ -418,23 +462,23 @@ void d_encode(const unsigned long long chain, const byte* const __restrict__ inp
 
     // handle carry
     if (!good || (csize >= osize)) csize = osize;
-    propagate_carry(csize, chunkID, fullcarry, (int*)temp);
+    propagate_carry(csize, chunkID, fullcarry, (long long*)temp);
 
     // reload chunk if incompressible
     if (tid == 0) size_out[chunkID] = csize;
     if (csize == osize) {
       // store original data
       long long* const out_l = (long long*)out;
-      for (int i = tid; i < osize / 8; i += TPB) {
+      for (long long i = tid; i < osize / 8; i += TPB) {
         out_l[i] = input_l[i];
       }
       const int extra = osize % 8;
-      if (tid < extra) out[osize - extra + tid] = input[base + osize - extra + tid];
+      if (tid < extra) out[(long long)osize - (long long)extra + (long long)tid] = input[base + (long long)osize - (long long)extra + (long long)tid];
     }
     __syncthreads();  // "out" done, temp produced
 
     // store chunk
-    const int offs = (chunkID == 0) ? 0 : *((int*)temp);
+    const long long offs = (chunkID == 0) ? 0 : *((long long*)temp);
     s2g(&data_out[offs], out, csize);
 
     // finalize if last chunk
@@ -453,42 +497,42 @@ static __global__ __launch_bounds__(TPB, 3)
 #else
 static __global__ __launch_bounds__(TPB, 2)
 #endif
-void d_decode(const unsigned long long chain, const byte* const __restrict__ input, byte* const __restrict__ output, int* const __restrict__ g_outsize)
+void d_decode(const unsigned long long chain, const byte* const __restrict__ input, byte* const __restrict__ output, long long* const __restrict__ g_outsize)
 {
   // allocate shared memory buffer
   __shared__ long long chunk [3 * (CS / sizeof(long long))];
   const int last = 3 * (CS / sizeof(long long)) - 2 - WS;
 
   // input header
-  int* const head_in = (int*)input;
-  const int outsize = head_in[0];
+  long long* const head_in = (long long*)input;
+  const long long outsize = head_in[0];
 
   // initialize
-  const int chunks = (outsize + CS - 1) / CS;  // round up
+  const long long chunks = (outsize + CS - 1) / CS;  // round up
   unsigned short* const size_in = (unsigned short*)&head_in[1];
   byte* const data_in = (byte*)&size_in[chunks];
 
   // loop over chunks
   const int tid = threadIdx.x;
-  int prevChunkID = 0;
-  int prevOffset = 0;
+  long long prevChunkID = 0;
+  long long prevOffset = 0;
   do {
     // assign work dynamically
-    if (tid == 0) chunk[last] = atomicAdd(&g_chunk_counter, 1);
+    if (tid == 0) chunk[last] = atomicAdd(&g_chunk_counter, 1LL);
     __syncthreads();  // chunk[last] produced, chunk consumed
 
     // terminate if done
-    const int chunkID = chunk[last];
-    const int base = chunkID * CS;
+    const long long chunkID = chunk[last];
+    const long long base = chunkID * CS;
     if (base >= outsize) break;
 
     // compute sum of all prior csizes (start where left off in previous iteration)
-    int sum = 0;
-    for (int i = prevChunkID + tid; i < chunkID; i += TPB) {
-      sum += (int)size_in[i];
+    long long sum = 0;
+    for (long long i = prevChunkID + tid; i < chunkID; i += TPB) {
+      sum += (long long)size_in[i];
     }
     int csize = (int)size_in[chunkID];
-    const int offs = prevOffset + block_sum_reduction(sum, (int*)&chunk[last + 1]);
+    const long long offs = prevOffset + block_sum_reduction(sum, (long long*)&chunk[last + 1]);
     prevChunkID = chunkID;
     prevOffset = offs;
 
@@ -503,7 +547,7 @@ void d_decode(const unsigned long long chain, const byte* const __restrict__ inp
     __syncthreads();  // chunk produced, chunk[last] consumed
 
     // decode
-    const int osize = min(CS, outsize - base);
+    const int osize = (int)min((long long)CS, outsize - base);
     if (csize < osize) {
       unsigned long long pipeline = chain;
       while (pipeline != 0) {
@@ -521,7 +565,7 @@ void d_decode(const unsigned long long chain, const byte* const __restrict__ inp
       }
     }
 
-    if (csize != osize) {printf("ERROR: csize %d doesn't match osize %d in chunk %d\n\n", csize, osize, chunkID); __trap();}
+    if (csize != osize) {printf("ERROR: csize %d doesn't match osize %d in chunk %lld\n\n", csize, osize, chunkID); __trap();}
     long long* const output_l = (long long*)&output[base];
     long long* const out_l = (long long*)out;
     for (int i = tid; i < osize / 8; i += TPB) {
@@ -540,26 +584,26 @@ void d_decode(const unsigned long long chain, const byte* const __restrict__ inp
 
 
 #ifdef USE_CPU
-static void h_encode(const unsigned long long chain, const byte* const __restrict__ input, const int insize, byte* const __restrict__ output, int& outsize)
+static void h_encode(const unsigned long long chain, const byte* const __restrict__ input, const long long insize, byte* const __restrict__ output, long long& outsize)
 {
   // initialize
-  const int chunks = (insize + CS - 1) / CS;  // round up
-  int* const head_out = (int*)output;
+  const long long chunks = (insize + CS - 1) / CS;  // round up
+  long long* const head_out = (long long*)output;
   unsigned short* const size_out = (unsigned short*)&head_out[1];
   byte* const data_out = (byte*)&size_out[chunks];
-  int* const carry = new int [chunks];
-  memset(carry, 0, chunks * sizeof(int));
+  long long* const carry = new long long [chunks];
+  memset(carry, 0, chunks * sizeof(long long));
 
   // process chunks in parallel
   #pragma omp parallel for schedule(dynamic, 1)
-  for (int chunkID = 0; chunkID < chunks; chunkID++) {
+  for (long long chunkID = 0; chunkID < chunks; chunkID++) {
     // load chunk
     long long chunk1 [CS / sizeof(long long)];
     long long chunk2 [CS / sizeof(long long)];
     byte* in = (byte*)chunk1;
     byte* out = (byte*)chunk2;
-    const int base = chunkID * CS;
-    const int osize = std::min(CS, insize - base);
+    const long long base = chunkID * CS;
+    const int osize = (int)std::min((long long)CS, insize - base);
     memcpy(out, &input[base], osize);
 
     // encode chunk
@@ -580,7 +624,7 @@ static void h_encode(const unsigned long long chain, const byte* const __restric
     }
 
     // handle carry and store chunk
-    int offs = 0;
+    long long offs = 0LL;
     if (chunkID > 0) {
       do {
         #pragma omp atomic read
@@ -591,13 +635,13 @@ static void h_encode(const unsigned long long chain, const byte* const __restric
     if (good && (csize < osize)) {
       // store compressed data
       #pragma omp atomic write
-      carry[chunkID] = offs + csize;
+      carry[chunkID] = (offs + (long long)csize);
       size_out[chunkID] = csize;
       memcpy(&data_out[offs], out, csize);
     } else {
       // store original data
       #pragma omp atomic write
-      carry[chunkID] = offs + osize;
+      carry[chunkID] = (offs + (long long)osize);
       size_out[chunkID] = osize;
       memcpy(&data_out[offs], &input[base], osize);
     }
@@ -612,7 +656,7 @@ static void h_encode(const unsigned long long chain, const byte* const __restric
 }
 
 
-static void h_encode(const unsigned long long chain, const byte* const __restrict__ input, const int insize, byte* const __restrict__ output, int& outsize, const int n_threads)
+static void h_encode(const unsigned long long chain, const byte* const __restrict__ input, const long long insize, byte* const __restrict__ output, long long& outsize, const int n_threads)
 {
   #ifdef _OPENMP
   const int before = omp_get_max_threads();
@@ -629,9 +673,9 @@ static void h_encode(const unsigned long long chain, const byte* const __restric
 
 static void hbestChunkSize(const byte* const __restrict__ input, unsigned short* const __restrict__ bestSize)
 {
-  int* const head_in = (int*)input;
-  const int outsize = head_in[0];
-  const int chunks = (outsize + CS - 1) / CS;  // round up
+  long long* const head_in = (long long*)input;
+  const long long outsize = head_in[0];
+  const long long chunks = (outsize + CS - 1) / CS;  // round up
   unsigned short* const size_in = (unsigned short*)&head_in[1];
   for (int chunkID = 0; chunkID < chunks; chunkID++) {
     bestSize[chunkID] = std::min(bestSize[chunkID], size_in[chunkID]);
@@ -639,35 +683,35 @@ static void hbestChunkSize(const byte* const __restrict__ input, unsigned short*
 }
 
 
-static void h_decode(const unsigned long long chain, const byte* const __restrict__ input, byte* const __restrict__ output, int& outsize)
+static void h_decode(const unsigned long long chain, const byte* const __restrict__ input, byte* const __restrict__ output, long long& outsize)
 {
   // input header
-  int* const head_in = (int*)input;
+  long long* const head_in = (long long*)input;
   outsize = head_in[0];
 
   // initialize
-  const int chunks = (outsize + CS - 1) / CS;  // round up
+  const long long chunks = (outsize + CS - 1) / CS;  // round up
   unsigned short* const size_in = (unsigned short*)&head_in[1];
   byte* const data_in = (byte*)&size_in[chunks];
-  int* const start = new int [chunks];
+  long long* const start = new long long [chunks];
 
   // convert chunk sizes into starting positions
-  int pfs = 0;
-  for (int chunkID = 0; chunkID < chunks; chunkID++) {
+  long long pfs = 0;
+  for (long long chunkID = 0; chunkID < chunks; chunkID++) {
     start[chunkID] = pfs;
-    pfs += (int)size_in[chunkID];
+    pfs += (long long)size_in[chunkID];
   }
 
   // process chunks in parallel
   #pragma omp parallel for schedule(dynamic, 1)
-  for (int chunkID = 0; chunkID < chunks; chunkID++) {
+  for (long long chunkID = 0; chunkID < chunks; chunkID++) {
     // load chunk
     long long chunk1 [CS / sizeof(long long)];
     long long chunk2 [CS / sizeof(long long)];
     byte* in = (byte*)chunk1;
     byte* out = (byte*)chunk2;
-    const int base = chunkID * CS;
-    const int osize = std::min(CS, outsize - base);
+    const long long base = chunkID * CS;
+    const int osize = (int)std::min((long long)CS, outsize - base);
     int csize = size_in[chunkID];
     if (csize == osize) {
       // simply copy
@@ -690,8 +734,7 @@ static void h_decode(const unsigned long long chain, const byte* const __restric
         }
         pipeline <<= 8;
       }
-
-      if (csize != osize) {fprintf(stderr, "ERROR: csize %d does not match osize %d in chunk %d\n\n", csize, osize, chunkID); throw std::runtime_error("LC error");}
+      if (csize != osize) {fprintf(stderr, "ERROR: csize %d does not match osize %d in chunk %lld\n\n", csize, osize, chunkID); throw std::runtime_error("LC error");}
       memcpy(&output[base], out, csize);
     }
   }
@@ -701,7 +744,7 @@ static void h_decode(const unsigned long long chain, const byte* const __restric
 }
 
 
-static void h_decode(const unsigned long long chain, const byte* const __restrict__ input, byte* const __restrict__ output, int& outsize, const int n_threads)
+static void h_decode(const unsigned long long chain, const byte* const __restrict__ input, byte* const __restrict__ output, long long& outsize, const int n_threads)
 {
   #ifdef _OPENMP
   const int before = omp_get_max_threads();
@@ -938,7 +981,7 @@ static double entropy(const T* const data, const long long len)
 
 
 template <typename T>
-static void Frequency(const T* const data, const int len)
+static void Frequency(const T* const data, const long long len)
 {
   assert(sizeof(T) <= 2);
   const int size = 1 << (sizeof(T) * 8);
@@ -964,17 +1007,17 @@ static void Frequency(const T* const data, const int len)
 
 
 template <typename T>
-static void frequency(const T* const data, const int len)
+static void frequency(const T* const data, const long long len)
 {
   std::vector<std::pair<int, T>> vec;
   if (len > 0) {
     T* const copy = new T [len];
-    for (int i = 0; i < len; i++) copy[i] = data[i];
+    for (long long i = 0; i < len; i++) copy[i] = data[i];
     std::sort(&copy[0], &copy[len]);
 
     int cnt = 1;
     T prev = copy[0];
-    for (int i = 1; i < len; i++) {
+    for (long long i = 1; i < len; i++) {
       if (copy[i] == prev) {
         cnt++;
       } else {

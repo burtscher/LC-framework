@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -87,21 +87,21 @@ static __device__ inline bool d_HCLOG(int& csize, byte in [CS], byte out [CS], b
     }
 
     // warp level max
-    max_val1 = max(max_val1, __shfl_xor_sync(~0, max_val1, 1));
-    max_val1 = max(max_val1, __shfl_xor_sync(~0, max_val1, 2));
-    max_val1 = max(max_val1, __shfl_xor_sync(~0, max_val1, 4));
-    max_val1 = max(max_val1, __shfl_xor_sync(~0, max_val1, 8));
-    max_val1 = max(max_val1, __shfl_xor_sync(~0, max_val1, 16));
+    max_val1 = max(max_val1, __shfl_xor(max_val1, 1));
+    max_val1 = max(max_val1, __shfl_xor(max_val1, 2));
+    max_val1 = max(max_val1, __shfl_xor(max_val1, 4));
+    max_val1 = max(max_val1, __shfl_xor(max_val1, 8));
+    max_val1 = max(max_val1, __shfl_xor(max_val1, 16));
 #if defined(WS) && (WS == 64)
-    max_val1 = max(max_val1, __shfl_xor_sync(~0, max_val1, 32));
+    max_val1 = max(max_val1, __shfl_xor(max_val1, 32));
 #endif
-    max_val2 = max(max_val2, __shfl_xor_sync(~0, max_val2, 1));
-    max_val2 = max(max_val2, __shfl_xor_sync(~0, max_val2, 2));
-    max_val2 = max(max_val2, __shfl_xor_sync(~0, max_val2, 4));
-    max_val2 = max(max_val2, __shfl_xor_sync(~0, max_val2, 8));
-    max_val2 = max(max_val2, __shfl_xor_sync(~0, max_val2, 16));
+    max_val2 = max(max_val2, __shfl_xor(max_val2, 1));
+    max_val2 = max(max_val2, __shfl_xor(max_val2, 2));
+    max_val2 = max(max_val2, __shfl_xor(max_val2, 4));
+    max_val2 = max(max_val2, __shfl_xor(max_val2, 8));
+    max_val2 = max(max_val2, __shfl_xor(max_val2, 16));
 #if defined(WS) && (WS == 64)
-    max_val2 = max(max_val2, __shfl_xor_sync(~0, max_val2, 32));
+    max_val2 = max(max_val2, __shfl_xor(max_val2, 32));
 #endif
 
     // use approach yielding smaller max_val
@@ -124,15 +124,15 @@ static __device__ inline bool d_HCLOG(int& csize, byte in [CS], byte out [CS], b
   if (warp == 0) {
     const int org = bits[lane];
     int val = org;
-    int tmp = __shfl_up_sync(~0, val, 1);
+    int tmp = __shfl_up(val, 1);
     if (lane >= 1) val += tmp;
-    tmp = __shfl_up_sync(~0, val, 2);
+    tmp = __shfl_up(val, 2);
     if (lane >= 2) val += tmp;
-    tmp = __shfl_up_sync(~0, val, 4);
+    tmp = __shfl_up(val, 4);
     if (lane >= 4) val += tmp;
-    tmp = __shfl_up_sync(~0, val, 8);
+    tmp = __shfl_up(val, 8);
     if (lane >= 8) val += tmp;
-    tmp = __shfl_up_sync(~0, val, 16);
+    tmp = __shfl_up(val, 16);
     if (lane >= 16) val += tmp;
     bits[lane] = val - org;
     if (lane == SC - 1) *total_bits = val;
@@ -185,9 +185,9 @@ static __device__ inline bool d_HCLOG(int& csize, byte in [CS], byte out [CS], b
         long long* const out_l = (long long*)out;
         const int pos = loc / TB;
         const int shift = loc % TB;
-        atomicOr_block(&out_l[pos], val << shift);
+        atomicOr_block((unsigned long long *)&out_l[pos], val << shift);
         if (TB - logn < shift) {
-          atomicOr_block(&out_l[pos + 1], val >> (TB - shift));
+          atomicOr_block((unsigned long long *)&out_l[pos + 1], val >> (TB - shift));
         }
       }
     }
@@ -252,15 +252,15 @@ static __device__ inline void d_iHCLOG(int& csize, byte in [CS], byte out [CS], 
     const int end = (lane + 1) * size / SC;
     const int org = res * (end - beg);
     int val = org;
-    int tmp = __shfl_up_sync(~0, val, 1);
+    int tmp = __shfl_up(val, 1);
     if (lane >= 1) val += tmp;
-    tmp = __shfl_up_sync(~0, val, 2);
+    tmp = __shfl_up(val, 2);
     if (lane >= 2) val += tmp;
-    tmp = __shfl_up_sync(~0, val, 4);
+    tmp = __shfl_up(val, 4);
     if (lane >= 4) val += tmp;
-    tmp = __shfl_up_sync(~0, val, 8);
+    tmp = __shfl_up(val, 8);
     if (lane >= 8) val += tmp;
-    tmp = __shfl_up_sync(~0, val, 16);
+    tmp = __shfl_up(val, 16);
     if (lane >= 16) val += tmp;
     bits[lane] = val - org;
   }

@@ -1,4 +1,4 @@
-static inline void d_[name_of_preprocessor](int& size, byte*& data, const int paramc, const double paramv [])  // GPU preprocessor encoder
+static inline void d_[name_of_preprocessor](int& long long, byte*& data, const int paramc, const double paramv [])  // GPU preprocessor encoder
 {
   // transforms the 'size' bytes in the 'data' array and writes the result either back to the 'data' array or to a new array and then makes 'data' point to this new array
   // if the number of bytes changes, the 'size' needs to be updated accordingly
@@ -10,7 +10,7 @@ static inline void d_[name_of_preprocessor](int& size, byte*& data, const int pa
   // 'data' must be in device memory
 }
 
-static inline void d_i[name_of_preprocessor](int& size, byte*& data, const int paramc, const double paramv [])  // GPU preprocessor decoder
+static inline void d_i[name_of_preprocessor](long long& size, byte*& data, const int paramc, const double paramv [])  // GPU preprocessor decoder
 {
   // transforms the 'size' bytes in the 'data' array and writes the result either back to the 'data' array or to a new array and then makes 'data' point to this new array
   // if the number of bytes changes, the 'size' needs to be updated accordingly

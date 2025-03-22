@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -49,18 +49,18 @@ static __device__ inline T block_prefix_sum(T val, void* buffer)  // returns inc
   T* const carry = (T*)buffer;
   assert(WS >= warps);
 
-  T tmp = __shfl_up_sync(~0, val, 1);
+  T tmp = __shfl_up(val, 1);
   if (lane >= 1) val += tmp;
-  tmp = __shfl_up_sync(~0, val, 2);
+  tmp = __shfl_up(val, 2);
   if (lane >= 2) val += tmp;
-  tmp = __shfl_up_sync(~0, val, 4);
+  tmp = __shfl_up(val, 4);
   if (lane >= 4) val += tmp;
-  tmp = __shfl_up_sync(~0, val, 8);
+  tmp = __shfl_up(val, 8);
   if (lane >= 8) val += tmp;
-  tmp = __shfl_up_sync(~0, val, 16);
+  tmp = __shfl_up(val, 16);
   if (lane >= 16) val += tmp;
 #if defined(WS) && (WS == 64)
-  tmp = __shfl_up_sync(~0, val, 32);
+  tmp = __shfl_up(val, 32);
   if (lane >= 32) val += tmp;
 #endif
 
@@ -70,23 +70,23 @@ static __device__ inline T block_prefix_sum(T val, void* buffer)  // returns inc
   if constexpr (warps > 1) {
     if (warp == 0) {
       T sum = carry[lane];
-      T tmp = __shfl_up_sync(~0, sum, 1);
+      T tmp = __shfl_up(sum, 1);
       if (lane >= 1) sum += tmp;
       if constexpr (warps > 2) {
-        tmp = __shfl_up_sync(~0, sum, 2);
+        tmp = __shfl_up(sum, 2);
         if (lane >= 2) sum += tmp;
         if constexpr (warps > 4) {
-          tmp = __shfl_up_sync(~0, sum, 4);
+          tmp = __shfl_up(sum, 4);
           if (lane >= 4) sum += tmp;
           if constexpr (warps > 8) {
-            tmp = __shfl_up_sync(~0, sum, 8);
+            tmp = __shfl_up(sum, 8);
             if (lane >= 8) sum += tmp;
             if constexpr (warps > 16) {
-              tmp = __shfl_up_sync(~0, sum, 16);
+              tmp = __shfl_up(sum, 16);
               if (lane >= 16) sum += tmp;
               #if defined(WS) && (WS == 64)
               if constexpr (warps > 32) {
-                tmp = __shfl_up_sync(~0, sum, 32);
+                tmp = __shfl_up(sum, 32);
                 if (lane >= 32) sum += tmp;
               }
               #endif

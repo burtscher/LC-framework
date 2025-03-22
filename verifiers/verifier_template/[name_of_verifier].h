@@ -1,4 +1,4 @@
-static void [name_of_verifier](const int size, const byte* const __restrict__ recon, const byte* const __restrict__ orig, const int paramc, const double paramv [])
+static void [name_of_verifier](const long long size, const byte* const __restrict__ recon, const byte* const __restrict__ orig, const int paramc, const double paramv [])
 {
   // checks whether the reconstructed (recon) data is within the given error bound of the original (orig) data
   // the verifier should print an error message and exit if it finds that the reconstructed data does not meet the specified error bound

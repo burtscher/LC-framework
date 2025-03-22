@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -64,14 +64,14 @@ static __device__ inline float d_QUANT_REL_0_f32_pow2approxf(const float log_f)
 }
 
 
-static __global__ void d_QUANT_REL_0_f32_kernel(const int len, byte* const __restrict__ data, const float errorbound, const float log2eb, const float inv_log2eb, const float threshold)
+static __global__ void d_QUANT_REL_0_f32_kernel(const long long len, byte* const __restrict__ data, const float errorbound, const float log2eb, const float inv_log2eb, const float threshold)
 {
   int* const data_i = (int*)data;
 
   const int mantissabits = 23;
   const int signexpomask = ~0 << mantissabits;
   const int maxbin = (1 << (mantissabits - 2)) - 1;  // leave 2 bits for 2 signs (plus one element)
-  const int idx = threadIdx.x + blockIdx.x * TPB;
+  const long long idx = threadIdx.x + (long long)blockIdx.x * TPB;
   if (idx < len) {
     const int orig_i = data_i[idx];
     const int abs_orig_i = orig_i & 0x7fff'ffff;
@@ -90,7 +90,7 @@ static __global__ void d_QUANT_REL_0_f32_kernel(const int len, byte* const __res
       } else {  // normal value
         const float log_f = d_QUANT_REL_0_f32_log2approxf(abs_orig_f);
         const float scaled = log_f * inv_log2eb;
-        int bin = (int)roundf(scaled);
+        int bin = (int)std::round(scaled);
         const float abs_recon_f = d_QUANT_REL_0_f32_pow2approxf(bin * log2eb);
         const float lower = abs_orig_f / (1 + errorbound);
         const float upper = abs_orig_f * (1 + errorbound);
@@ -107,14 +107,14 @@ static __global__ void d_QUANT_REL_0_f32_kernel(const int len, byte* const __res
 }
 
 
-static __global__ void d_iQUANT_REL_0_f32_kernel(const int len, byte* const __restrict__ data, const float log2eb)
+static __global__ void d_iQUANT_REL_0_f32_kernel(const long long len, byte* const __restrict__ data, const float log2eb)
 {
   float* const data_f = (float*)data;
   int* const data_i = (int*)data;
 
   const int mantissabits = 23;
   const int signexpomask = ~0 << mantissabits;
-  const int idx = threadIdx.x + blockIdx.x * TPB;
+  const long long idx = threadIdx.x + (long long)blockIdx.x * TPB;
   if (idx < len) {
     const int val = (data_i[idx] + 1) ^ signexpomask;
     if (((val & signexpomask) == signexpomask) && ((val & ~signexpomask) != 0)) {  // is encoded value
@@ -133,10 +133,10 @@ static __global__ void d_iQUANT_REL_0_f32_kernel(const int len, byte* const __re
 }
 
 
-static inline void d_QUANT_REL_0_f32(int& size, byte*& data, const int paramc, const double paramv [])
+static inline void d_QUANT_REL_0_f32(long long& size, byte*& data, const int paramc, const double paramv [])
 {
   if (size % sizeof(float) != 0) {fprintf(stderr, "QUANT_REL_0_f32: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(float)); throw std::runtime_error("LC error");}
-  const int len = size / sizeof(float);
+  const long long len = size / sizeof(float);
   if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_REL_0_f32(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
   const float errorbound = paramv[0];
   const float threshold = (paramc == 2) ? paramv[1] : std::numeric_limits<float>::infinity();
@@ -150,10 +150,10 @@ static inline void d_QUANT_REL_0_f32(int& size, byte*& data, const int paramc, c
 }
 
 
-static inline void d_iQUANT_REL_0_f32(int& size, byte*& data, const int paramc, const double paramv [])
+static inline void d_iQUANT_REL_0_f32(long long& size, byte*& data, const int paramc, const double paramv [])
 {
   if (size % sizeof(float) != 0) {fprintf(stderr, "QUANT_REL_0_f32: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(float)); throw std::runtime_error("LC error");}
-  const int len = size / sizeof(float);
+  const long long len = size / sizeof(float);
   if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_REL_0_f32(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
   const float errorbound = paramv[0];
   if (errorbound < 1E-5f) {fprintf(stderr, "QUANT_REL_0_f32: ERROR: error_bound must be at least %e\n", 1E-5f); throw std::runtime_error("LC error");}  // minimum positive normalized value

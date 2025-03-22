@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 */
 
 
-static void MAXABS_f64(const int size, const byte* const __restrict__ recon, const byte* const __restrict__ orig, const int paramc, const double paramv [])
+static void MAXABS_f64(const long long size, const byte* const __restrict__ recon, const byte* const __restrict__ orig, const int paramc, const double paramv [])
 {
   using type_f = double;
   using type_i = long long;
@@ -50,21 +50,21 @@ static void MAXABS_f64(const int size, const byte* const __restrict__ recon, con
 
   const type_f* const orig_f = (type_f*)orig;
   const type_f* const recon_f = (type_f*)recon;
-  const int len = size / sizeof(type_f);
+  const long long len = size / sizeof(type_f);
 
-  for (int i = 0; i < len; i++) {
+  for (long long i = 0; i < len; i++) {
     if (!std::isfinite(orig_f[i]) || !std::isfinite(recon_f[i])) {  // at least one value is INF or NaN
       if (recon_f[i] != orig_f[i]) {
         if (!std::isnan(orig_f[i]) || !std::isnan(recon_f[i])) {  // at least one value isn't a NaN
-          fprintf(stderr, "MAXABS_f64 ERROR: absolute error bound exceeded due to NaN or INF at position %d: value is '%.10f' vs '%.10f'\n\n", i, recon_f[i], orig_f[i]);
+          fprintf(stderr, "MAXABS_f64 ERROR: absolute error bound exceeded due to NaN or INF at position %lld: value is '%.10f' vs '%.10f'\n\n", i, recon_f[i], orig_f[i]);
           throw std::runtime_error("LC error");
         }
       }
     } else {
       const type_f lower = orig_f[i] - errorbound;
       const type_f upper = orig_f[i] + errorbound;
-      if ((recon_f[i] < lower) || (recon_f[i] > upper) || (fabs(orig_f[i] - recon_f[i]) > errorbound)) {
-        fprintf(stderr, "MAXABS_f64 ERROR: absolute error bound of %.10f exceeded at position %d: value is '%.10f' vs '%.10f' (diff is '%.10f')\n\n", errorbound, i, recon_f[i], orig_f[i], fabs(orig_f[i] - recon_f[i]));
+      if ((recon_f[i] < lower) || (recon_f[i] > upper) || (std::abs(orig_f[i] - recon_f[i]) > errorbound)) {
+        fprintf(stderr, "MAXABS_f64 ERROR: absolute error bound of %.10f exceeded at position %lld: value is '%.10f' vs '%.10f' (diff is '%.10f')\n\n", errorbound, i, recon_f[i], orig_f[i], std::abs(orig_f[i] - recon_f[i]));
         throw std::runtime_error("LC error");
       }
     }

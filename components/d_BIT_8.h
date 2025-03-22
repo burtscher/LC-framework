@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -61,8 +61,8 @@ static __device__ inline bool d_BIT_8(int& csize, byte in [CS], byte out [CS], b
     a0 = (a0 & ~mask) | (b0 >> 32);
     a1 = (a1 & mask) | (b1 << 32);
 
-    b0 = __shfl_xor_sync(~0, a0, 16);
-    b1 = __shfl_xor_sync(~0, a1, 16);
+    b0 = __shfl_xor(a0, 16);
+    b1 = __shfl_xor(a1, 16);
     mask = 0x0000FFFF0000FFFFULL;
     if ((sublane & 16) == 0) {
       a0 = (a0 & ~mask) | ((b0 >> 16) & mask);
@@ -72,8 +72,8 @@ static __device__ inline bool d_BIT_8(int& csize, byte in [CS], byte out [CS], b
       a1 = (a1 & mask) | ((b1 << 16) & ~mask);
     }
 
-    b0 = __shfl_xor_sync(~0, a0, 8);
-    b1 = __shfl_xor_sync(~0, a1, 8);
+    b0 = __shfl_xor(a0, 8);
+    b1 = __shfl_xor(a1, 8);
     mask = 0x00FF00FF00FF00FFULL;
     if ((sublane & 8) == 0) {
       a0 = (a0 & ~mask) | ((b0 >> 8) & mask);
@@ -83,8 +83,8 @@ static __device__ inline bool d_BIT_8(int& csize, byte in [CS], byte out [CS], b
       a1 = (a1 & mask) | ((b1 << 8) & ~mask);
     }
 
-    b0 = __shfl_xor_sync(~0, a0, 4);
-    b1 = __shfl_xor_sync(~0, a1, 4);
+    b0 = __shfl_xor(a0, 4);
+    b1 = __shfl_xor(a1, 4);
     mask = 0x0F0F0F0F0F0F0F0FULL;
     if ((sublane & 4) == 0) {
       a0 = (a0 & ~mask) | ((b0 >> 4) & mask);
@@ -94,8 +94,8 @@ static __device__ inline bool d_BIT_8(int& csize, byte in [CS], byte out [CS], b
       a1 = (a1 & mask) | ((b1 << 4) & ~mask);
     }
 
-    b0 = __shfl_xor_sync(~0, a0, 2);
-    b1 = __shfl_xor_sync(~0, a1, 2);
+    b0 = __shfl_xor(a0, 2);
+    b1 = __shfl_xor(a1, 2);
     mask = 0x3333333333333333ULL;
     if ((sublane & 2) == 0) {
       a0 = (a0 & ~mask) | ((b0 >> 2) & mask);
@@ -105,8 +105,8 @@ static __device__ inline bool d_BIT_8(int& csize, byte in [CS], byte out [CS], b
       a1 = (a1 & mask) | ((b1 << 2) & ~mask);
     }
 
-    b0 = __shfl_xor_sync(~0, a0, 1);
-    b1 = __shfl_xor_sync(~0, a1, 1);
+    b0 = __shfl_xor(a0, 1);
+    b1 = __shfl_xor(a1, 1);
     mask = 0x5555555555555555ULL;
     if ((sublane & 1) == 0) {
       a0 = (a0 & ~mask) | ((b0 >> 1) & mask);
@@ -147,8 +147,8 @@ static __device__ inline void d_iBIT_8(int& csize, byte in [CS], byte out [CS], 
     a0 = (a0 & ~mask) | (b0 >> 32);
     a1 = (a1 & mask) | (b1 << 32);
 
-    b0 = __shfl_xor_sync(~0, a0, 16);
-    b1 = __shfl_xor_sync(~0, a1, 16);
+    b0 = __shfl_xor(a0, 16);
+    b1 = __shfl_xor(a1, 16);
     mask = 0x0000FFFF0000FFFFULL;
     if ((sublane & 16) == 0) {
       a0 = (a0 & ~mask) | ((b0 >> 16) & mask);
@@ -158,8 +158,8 @@ static __device__ inline void d_iBIT_8(int& csize, byte in [CS], byte out [CS], 
       a1 = (a1 & mask) | ((b1 << 16) & ~mask);
     }
 
-    b0 = __shfl_xor_sync(~0, a0, 8);
-    b1 = __shfl_xor_sync(~0, a1, 8);
+    b0 = __shfl_xor(a0, 8);
+    b1 = __shfl_xor(a1, 8);
     mask = 0x00FF00FF00FF00FFULL;
     if ((sublane & 8) == 0) {
       a0 = (a0 & ~mask) | ((b0 >> 8) & mask);
@@ -169,8 +169,8 @@ static __device__ inline void d_iBIT_8(int& csize, byte in [CS], byte out [CS], 
       a1 = (a1 & mask) | ((b1 << 8) & ~mask);
     }
 
-    b0 = __shfl_xor_sync(~0, a0, 4);
-    b1 = __shfl_xor_sync(~0, a1, 4);
+    b0 = __shfl_xor(a0, 4);
+    b1 = __shfl_xor(a1, 4);
     mask = 0x0F0F0F0F0F0F0F0FULL;
     if ((sublane & 4) == 0) {
       a0 = (a0 & ~mask) | ((b0 >> 4) & mask);
@@ -180,8 +180,8 @@ static __device__ inline void d_iBIT_8(int& csize, byte in [CS], byte out [CS], 
       a1 = (a1 & mask) | ((b1 << 4) & ~mask);
     }
 
-    b0 = __shfl_xor_sync(~0, a0, 2);
-    b1 = __shfl_xor_sync(~0, a1, 2);
+    b0 = __shfl_xor(a0, 2);
+    b1 = __shfl_xor(a1, 2);
     mask = 0x3333333333333333ULL;
     if ((sublane & 2) == 0) {
       a0 = (a0 & ~mask) | ((b0 >> 2) & mask);
@@ -191,8 +191,8 @@ static __device__ inline void d_iBIT_8(int& csize, byte in [CS], byte out [CS], 
       a1 = (a1 & mask) | ((b1 << 2) & ~mask);
     }
 
-    b0 = __shfl_xor_sync(~0, a0, 1);
-    b1 = __shfl_xor_sync(~0, a1, 1);
+    b0 = __shfl_xor(a0, 1);
+    b1 = __shfl_xor(a1, 1);
     mask = 0x5555555555555555ULL;
     if ((sublane & 1) == 0) {
       a0 = (a0 & ~mask) | ((b0 >> 1) & mask);

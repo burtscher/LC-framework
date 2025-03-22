@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -49,10 +49,10 @@ static unsigned int h_QUANT_NOA_R_f64_hash(unsigned int val)
 }
 
 
-static inline void h_QUANT_NOA_R_f64(int& size, byte*& data, const int paramc, const double paramv [])
+static inline void h_QUANT_NOA_R_f64(long long& size, byte*& data, const int paramc, const double paramv [])
 {
   if (size % sizeof(double) != 0) {fprintf(stderr, "QUANT_NOA_R_f64: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(double)); throw std::runtime_error("LC error");}
-  const int len = size / sizeof(double);
+  const long long len = size / sizeof(double);
   if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_NOA_R_f64(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
   const double errorbound = paramv[0];
   const double threshold = (paramc == 2) ? paramv[1] : std::numeric_limits<double>::infinity();
@@ -64,7 +64,7 @@ static inline void h_QUANT_NOA_R_f64(int& size, byte*& data, const int paramc, c
   double maxf, minf;
   maxf = minf = orig_data_f[0];
   #pragma omp parallel for default(none) shared(len, orig_data_f) reduction(max:maxf) reduction(min:minf)
-  for (int i = 0; i < len; i++) {
+  for (long long i = 0; i < len; i++) {
     const double orig_val = orig_data_f[i];
     if (std::isfinite(orig_val)) {
       maxf = std::max(orig_val, maxf);
@@ -85,16 +85,16 @@ static inline void h_QUANT_NOA_R_f64(int& size, byte*& data, const int paramc, c
 
   int count = 0;
   #pragma omp parallel for default(none) shared(len, data, data_i, data_f, orig_data_f, adj_eb, inv_eb, inv_mask, mask, threshold, maxbin, errorbound, mantissabits) reduction(+: count)
-  for (int i = 0; i < len; i++) {
+  for (long long i = 0; i < len; i++) {
     const double orig_f = orig_data_f[i];
     const double scaled = orig_f * inv_eb;
-    const long long bin = (long long)round(scaled);
+    const long long bin = (long long)std::round(scaled);
     const long long rnd1 = h_QUANT_NOA_R_f64_hash(bin + i);
     const long long rnd2 = h_QUANT_NOA_R_f64_hash((bin >> 32) - i);
     const double rnd = inv_mask * (((rnd2 << 32) | rnd1) & mask) - 0.5;  // random noise
     const double recon = (bin + rnd) * adj_eb;
 
-    if ((bin >= maxbin) || (bin <= -maxbin) || (fabs(orig_f) >= threshold) || (fabs(orig_f - recon) > adj_eb) || (orig_f != orig_f)) {  // last check is to handle NaNs
+    if ((bin >= maxbin) || (bin <= -maxbin) || (std::abs(orig_f) >= threshold) || (std::abs(orig_f - recon) > adj_eb) || (orig_f != orig_f)) {  // last check is to handle NaNs
       count++;  // informal only
       assert(((((long long*)data)[i] >> mantissabits) & 0x7ff) != 0);
       data_f[i] = orig_f;
@@ -111,7 +111,7 @@ static inline void h_QUANT_NOA_R_f64(int& size, byte*& data, const int paramc, c
 }
 
 
-static inline void h_iQUANT_NOA_R_f64(int& size, byte*& data, const int paramc, const double paramv [])
+static inline void h_iQUANT_NOA_R_f64(long long& size, byte*& data, const int paramc, const double paramv [])
 {
   if (size % sizeof(double) != 0) {fprintf(stderr, "QUANT_NOA_R_f64: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(double)); throw std::runtime_error("LC error");}
   const int len = size / sizeof(double) - 1;
@@ -127,7 +127,7 @@ static inline void h_iQUANT_NOA_R_f64(int& size, byte*& data, const int paramc, 
   const double inv_mask = 1.0 / mask;
 
   #pragma omp parallel for default(none) shared(len, data_f, data_i, mask, inv_mask, errorbound, mantissabits)
-  for (int i = 0; i < len; i++) {
+  for (long long i = 0; i < len; i++) {
     long long bin = data_i[i];
     if ((0 <= bin) && (bin < (1LL << mantissabits))) {  // is encoded value
       bin = (bin >> 1) ^ (((bin << 63) >> 63));  // TCMS decoding

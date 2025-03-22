@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -37,21 +37,21 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 */
 
 
-static __global__ void d_QUANT_ABS_0_f32_kernel(const int len, byte* const __restrict__ data, const float errorbound, const float eb2, const float inv_eb2, const float threshold)
+static __global__ void d_QUANT_ABS_0_f32_kernel(const long long len, byte* const __restrict__ data, const float errorbound, const float eb2, const float inv_eb2, const float threshold)
 {
   float* const data_f = (float*)data;
   int* const data_i = (int*)data;
 
   const int mantissabits = 23;
   const int maxbin = 1 << (mantissabits - 1);  // leave 1 bit for sign
-  const int idx = threadIdx.x + blockIdx.x * TPB;
+  const long long idx = threadIdx.x + (long long)blockIdx.x * TPB;
   if (idx < len) {
     const float orig_f = data_f[idx];
     const float scaled = orig_f * inv_eb2;
-    const int bin = (int)roundf(scaled);
+    const int bin = (int)std::round(scaled);
     const float recon = bin * eb2;
 
-    if ((bin >= maxbin) || (bin <= -maxbin) || (fabsf(orig_f) >= threshold) || (fabsf(orig_f - recon) > errorbound) || (orig_f != orig_f)) {  // last check is to handle NaNs
+    if ((bin >= maxbin) || (bin <= -maxbin) || (std::abs(orig_f) >= threshold) || (std::abs(orig_f - recon) > errorbound) || (orig_f != orig_f)) {  // last check is to handle NaNs
       assert(((data_i[idx] >> mantissabits) & 0xff) != 0);
     } else {
       data_i[idx] = (bin << 1) ^ (bin >> 31);  // TCMS encoding, 'sign' and 'exponent' fields are zero
@@ -60,13 +60,13 @@ static __global__ void d_QUANT_ABS_0_f32_kernel(const int len, byte* const __res
 }
 
 
-static __global__ void d_iQUANT_ABS_0_f32_kernel(const int len, byte* const __restrict__ data, const float eb2)
+static __global__ void d_iQUANT_ABS_0_f32_kernel(const long long len, byte* const __restrict__ data, const float eb2)
 {
   float* const data_f = (float*)data;
   int* const data_i = (int*)data;
 
   const int mantissabits = 23;
-  const int idx = threadIdx.x + blockIdx.x * TPB;
+  const long long idx = threadIdx.x + (long long)blockIdx.x * TPB;
   if (idx < len) {
     int bin = data_i[idx];
     if ((0 <= bin) && (bin < (1 << mantissabits))) {  // is encoded value
@@ -77,10 +77,10 @@ static __global__ void d_iQUANT_ABS_0_f32_kernel(const int len, byte* const __re
 }
 
 
-static inline void d_QUANT_ABS_0_f32(int& size, byte*& data, const int paramc, const double paramv [])
+static inline void d_QUANT_ABS_0_f32(long long& size, byte*& data, const int paramc, const double paramv [])
 {
   if (size % sizeof(float) != 0) {fprintf(stderr, "QUANT_ABS_0_f32: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(float)); throw std::runtime_error("LC error");}
-  const int len = size / sizeof(float);
+  const long long len = size / sizeof(float);
   if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_ABS_0_f32(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
   const float errorbound = paramv[0];
   const float threshold = (paramc == 2) ? paramv[1] : std::numeric_limits<float>::infinity();
@@ -94,10 +94,10 @@ static inline void d_QUANT_ABS_0_f32(int& size, byte*& data, const int paramc, c
 }
 
 
-static inline void d_iQUANT_ABS_0_f32(int& size, byte*& data, const int paramc, const double paramv [])
+static inline void d_iQUANT_ABS_0_f32(long long& size, byte*& data, const int paramc, const double paramv [])
 {
   if (size % sizeof(float) != 0) {fprintf(stderr, "QUANT_ABS_0_f32: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(float)); throw std::runtime_error("LC error");}
-  const int len = size / sizeof(float);
+  const long long len = size / sizeof(float);
   if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_ABS_0_f32(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
   const float errorbound = paramv[0];
   if (errorbound < std::numeric_limits<float>::min()) {fprintf(stderr, "QUANT_ABS_0_f32: ERROR: error_bound must be at least %e\n", std::numeric_limits<float>::min()); throw std::runtime_error("LC error");}  // minimum positive normalized value

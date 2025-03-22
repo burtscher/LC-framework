@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -40,7 +40,6 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 #include <thrust/extrema.h>
 #include <thrust/execution_policy.h>
 #include <thrust/device_ptr.h>
-#include <cuda/std/limits>
 
 
 // source of hash function: https://stackoverflow.com/questions/664014/what-integer-hash-function-are-good-that-accepts-an-integer-hash-key
@@ -52,7 +51,7 @@ static __device__ unsigned int d_QUANT_NOA_R_f32_hash(unsigned int val)
 }
 
 
-static __global__ void d_QUANT_NOA_R_f32_kernel(const int len, byte* const __restrict__ data, byte* const __restrict__ orig_data, const float errorbound, const float* maxf, const float* minf, const float threshold)
+static __global__ void d_QUANT_NOA_R_f32_kernel(const long long len, byte* const __restrict__ data, byte* const __restrict__ orig_data, const float errorbound, const float* maxf, const float* minf, const float threshold)
 {
   float* const orig_data_f = (float*)orig_data;
   int* const orig_data_i = (int*)orig_data;
@@ -67,16 +66,16 @@ static __global__ void d_QUANT_NOA_R_f32_kernel(const int len, byte* const __res
   const int mask = (1 << mantissabits) - 1;
   const float inv_mask = 1.0f / mask;
 
-  const int idx = threadIdx.x + blockIdx.x * TPB;
+  const long long idx = threadIdx.x + (long long)blockIdx.x * TPB;
   if (idx < len) {
     const float orig_f = orig_data_f[idx];
     const float scaled = orig_f * inv_eb;
-    const int bin = (int)roundf(scaled);
+    const int bin = (int)std::round(scaled);
     const float rnd = inv_mask * (d_QUANT_NOA_R_f32_hash(idx + len) & mask);  // random noise
     const float temp = (bin - 0.5f) + rnd;
     const float recon = temp * adj_eb;
 
-    if ((bin >= maxbin) || (bin <= -maxbin) || (fabsf(orig_f) >= threshold) || (fabsf(orig_f - recon) > adj_eb) || (orig_f != orig_f)) {  // last check is to handle NaNs
+    if ((bin >= maxbin) || (bin <= -maxbin) || (std::abs(orig_f) >= threshold) || (std::abs(orig_f - recon) > adj_eb) || (orig_f != orig_f)) {  // last check is to handle NaNs
       data_f[idx] = orig_f;
       assert(((orig_data_i[idx] >> mantissabits) & 0xff) != 0);
     } else {
@@ -90,7 +89,7 @@ static __global__ void d_QUANT_NOA_R_f32_kernel(const int len, byte* const __res
 }
 
 
-static __global__ void d_iQUANT_NOA_R_f32_kernel(const int len, byte* const __restrict__ data)
+static __global__ void d_iQUANT_NOA_R_f32_kernel(const long long len, byte* const __restrict__ data)
 {
   float* const data_f = (float*)data;
   int* const data_i = (int*)data;
@@ -100,7 +99,7 @@ static __global__ void d_iQUANT_NOA_R_f32_kernel(const int len, byte* const __re
   const int mask = (1 << mantissabits) - 1;
   const float inv_mask = 1.0f / mask;
 
-  const int idx = threadIdx.x + blockIdx.x * TPB;
+  const long long idx = threadIdx.x + (long long)blockIdx.x * TPB;
   if (idx < len) {
     int bin = data_i[idx];
     if ((0 <= bin) && (bin < (1 << mantissabits))) {  // is encoded value
@@ -113,10 +112,10 @@ static __global__ void d_iQUANT_NOA_R_f32_kernel(const int len, byte* const __re
 }
 
 
-static inline void d_QUANT_NOA_R_f32(int& size, byte*& data, const int paramc, const double paramv [])
+static inline void d_QUANT_NOA_R_f32(long long& size, byte*& data, const int paramc, const double paramv [])
 {
   if (size % sizeof(float) != 0) {fprintf(stderr, "QUANT_NOA_R_f32: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(float)); throw std::runtime_error("LC error");}
-  const int len = size / sizeof(float);
+  const long long len = size / sizeof(float);
   if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_NOA_R_f32(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
   const float errorbound = paramv[0];
   const float threshold = (paramc == 2) ? paramv[1] : std::numeric_limits<float>::infinity();
@@ -140,10 +139,10 @@ static inline void d_QUANT_NOA_R_f32(int& size, byte*& data, const int paramc, c
 }
 
 
-static inline void d_iQUANT_NOA_R_f32(int& size, byte*& data, const int paramc, const double paramv [])
+static inline void d_iQUANT_NOA_R_f32(long long& size, byte*& data, const int paramc, const double paramv [])
 {
   if (size % sizeof(float) != 0) {fprintf(stderr, "QUANT_NOA_R_f32: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(float)); throw std::runtime_error("LC error");}
-  const int len = size / sizeof(float);
+  const long long len = size / sizeof(float);
   if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_NOA_R_f32(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
 
   d_iQUANT_NOA_R_f32_kernel<<<(len + TPB - 1) / TPB, TPB>>>(len - 1, data);

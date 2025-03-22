@@ -12,3 +12,8 @@ decompress
 decompressor-standalone.cpp
 decompressor-standalone.cu
 *.csv
+*.idea
+*.d64
+*.f32
+*.exe
+*.exe.*

@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -37,10 +37,10 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 */
 
 
-static inline void h_QUANT_ABS_0_f64(int& size, byte*& data, const int paramc, const double paramv [])
+static inline void h_QUANT_ABS_0_f64(long long& size, byte*& data, const int paramc, const double paramv [])
 {
   if (size % sizeof(double) != 0) {fprintf(stderr, "QUANT_ABS_0_f64: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(double)); throw std::runtime_error("LC error");}
-  const int len = size / sizeof(double);
+  const long long len = size / sizeof(double);
   if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_ABS_0_f64(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
   const double errorbound = paramv[0];
   const double threshold = (paramc == 2) ? paramv[1] : std::numeric_limits<double>::infinity();
@@ -57,13 +57,13 @@ static inline void h_QUANT_ABS_0_f64(int& size, byte*& data, const int paramc, c
 
   int count = 0;
   #pragma omp parallel for default(none) shared(len, data_f, data_i, errorbound, eb2, inv_eb2, threshold, maxbin, mantissabits) reduction(+: count)
-  for (int i = 0; i < len; i++) {
+  for (long long i = 0; i < len; i++) {
     const double orig_f = data_f[i];
     const double scaled = orig_f * inv_eb2;
-    const long long bin = (long long)round(scaled);
+    const long long bin = (long long)std::round(scaled);
     const double recon = bin * eb2;
 
-    if ((bin >= maxbin) || (bin <= -maxbin) || (fabs(orig_f) >= threshold) || (fabs(orig_f - recon) > errorbound) || (orig_f != orig_f)) {  // last check is to handle NaNs
+    if ((bin >= maxbin) || (bin <= -maxbin) || (std::abs(orig_f) >= threshold) || (std::abs(orig_f - recon) > errorbound) || (orig_f != orig_f)) {  // last check is to handle NaNs
       count++;  // informal only
       assert(((data_i[i] >> mantissabits) & 0x7ff) != 0);
     } else {
@@ -75,10 +75,10 @@ static inline void h_QUANT_ABS_0_f64(int& size, byte*& data, const int paramc, c
 }
 
 
-static inline void h_iQUANT_ABS_0_f64(int& size, byte*& data, const int paramc, const double paramv [])
+static inline void h_iQUANT_ABS_0_f64(long long& size, byte*& data, const int paramc, const double paramv [])
 {
   if (size % sizeof(double) != 0) {fprintf(stderr, "QUANT_ABS_0_f64: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(double)); throw std::runtime_error("LC error");}
-  const int len = size / sizeof(double);
+  const long long len = size / sizeof(double);
   if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_ABS_0_f64(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
   const double errorbound = paramv[0];
   if (errorbound < std::numeric_limits<double>::min()) {fprintf(stderr, "QUANT_ABS_0_f64: ERROR: error_bound must be at least %e\n", std::numeric_limits<double>::min()); throw std::runtime_error("LC error");}  // minimum positive normalized value
@@ -90,7 +90,7 @@ static inline void h_iQUANT_ABS_0_f64(int& size, byte*& data, const int paramc, 
   const double eb2 = 2 * errorbound;
 
   #pragma omp parallel for default(none) shared(len, data_f, data_i, eb2, mantissabits)
-  for (int i = 0; i < len; i++) {
+  for (long long i = 0; i < len; i++) {
     long long bin = data_i[i];
     if ((0 <= bin) && (bin < (1LL << mantissabits))) {  // is encoded value
       bin = (bin >> 1) ^ (((bin << 63) >> 63));  // TCMS decoding

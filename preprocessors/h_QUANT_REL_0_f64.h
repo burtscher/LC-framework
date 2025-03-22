@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -62,10 +62,10 @@ static inline double h_QUANT_REL_0_f64_pow2approx(const double log_f)
 }
 
 
-static inline void h_QUANT_REL_0_f64(int& size, byte*& data, const int paramc, const double paramv [])
+static inline void h_QUANT_REL_0_f64(long long& size, byte*& data, const int paramc, const double paramv [])
 {
   if (size % sizeof(double) != 0) {fprintf(stderr, "QUANT_REL_0_f64 ERROR: size of input must be a multiple of %ld bytes\n", sizeof(double)); throw std::runtime_error("LC error");}
-  const int len = size / sizeof(double);
+  const long long len = size / sizeof(double);
   if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_REL_0_f64(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
   const double errorbound = paramv[0];
   const double threshold = (paramc == 2) ? paramv[1] : std::numeric_limits<double>::infinity();
@@ -82,7 +82,7 @@ static inline void h_QUANT_REL_0_f64(int& size, byte*& data, const int paramc, c
 
   int count = 0;
   #pragma omp parallel for default(none) shared(signexpomask, len, data_i, errorbound, log2eb, inv_log2eb, threshold, maxbin, mantissabits) reduction(+: count)
-  for (int i = 0; i < len; i++) {
+  for (long long i = 0; i < len; i++) {
     const long long orig_i = data_i[i];
     const long long abs_orig_i = orig_i & 0x7fff'ffff'ffff'ffffLL;
     const double abs_orig_f = *((double*)&abs_orig_i);
@@ -100,7 +100,7 @@ static inline void h_QUANT_REL_0_f64(int& size, byte*& data, const int paramc, c
       } else {  // normal value
         const double log_f = h_QUANT_REL_0_f64_log2approx(abs_orig_f);
         const double scaled = log_f * inv_log2eb;
-        long long bin = (long long)roundf(scaled);
+        long long bin = (long long)std::round(scaled);
         const double abs_recon_f = h_QUANT_REL_0_f64_pow2approx(bin * log2eb);
         const double lower = abs_orig_f / (1 + errorbound);
         const double upper = abs_orig_f * (1 + errorbound);
@@ -121,10 +121,10 @@ static inline void h_QUANT_REL_0_f64(int& size, byte*& data, const int paramc, c
 }
 
 
-static inline void h_iQUANT_REL_0_f64(int& size, byte*& data, const int paramc, const double paramv [])
+static inline void h_iQUANT_REL_0_f64(long long& size, byte*& data, const int paramc, const double paramv [])
 {
   if (size % sizeof(double) != 0) {fprintf(stderr, "QUANT_REL_0_f64 ERROR: size of input must be a multiple of %ld bytes\n", sizeof(double)); throw std::runtime_error("LC error");}
-  const int len = size / sizeof(double);
+  const long long len = size / sizeof(double);
   if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_REL_0_f64(error_bound [, threshold])\n"); throw std::runtime_error("LC error");}
   const double errorbound = paramv[0];
   if (errorbound < 1E-7) {fprintf(stderr, "QUANT_REL_0_f64 ERROR: error_bound must be at least %e\n", 1E-7); throw std::runtime_error("LC error");}  // log and exp are too inaccurate below this error bound
@@ -137,7 +137,7 @@ static inline void h_iQUANT_REL_0_f64(int& size, byte*& data, const int paramc, 
   const double log2eb = 2 * h_QUANT_REL_0_f64_log2approx(1 + errorbound);
 
   #pragma omp parallel for default(none) shared(len, data_f, data_i, log2eb, signexpomask)
-  for (int i = 0; i < len; i++) {
+  for (long long i = 0; i < len; i++) {
     const long long val = (data_i[i] + 1) ^ signexpomask;
     if (((val & signexpomask) == signexpomask) && ((val & ~signexpomask) != 0)) {  // is encoded value
       if (val == (signexpomask | 1)) {

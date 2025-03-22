@@ -54,11 +54,11 @@ If, instead, you want to run LC on the GPU, generate the framework as follows:
 
 In either case, run the printed command to compile the generated code. For the CPU, use:
 
-    g++ -O3 -march=native -fopenmp -mno-fma -DUSE_CPU -I. -std=c++17 -o lc lc.cpp
+    g++ -O3 -march=native -fopenmp -mno-fma -ffp-contract=off -DUSE_CPU -I. -std=c++17 -o lc lc.cpp
 
 For the GPU, use:
 
-    nvcc -O3 -arch=sm_70 -fmad=false -DUSE_GPU -Xcompiler "-O3 -march=native -fopenmp -mno-fma" -I. -o lc lc.cu
+    nvcc -O3 -arch=sm_70 -fmad=false -DUSE_GPU -Xcompiler "-O3 -march=native -fopenmp -mno-fma -ffp-contract=off" -I. -o lc lc.cu
 
 You may have to adjust these commands and flags to your system and compiler. For instance, the *sm_70* should be changed to match your GPU's compute capability.
 
@@ -176,13 +176,13 @@ To generate the GPU version, run:
 
 In either case, run the printed commands to compile the generated code. For the CPU, use:
 
-    g++ -O3 -march=native -fopenmp -mno-fma -I. -std=c++17 -o compress compressor-standalone.cpp
-    g++ -O3 -march=native -fopenmp -mno-fma -I. -std=c++17 -o decompress decompressor-standalone.cpp
+    g++ -O3 -march=native -fopenmp -mno-fma -ffp-contract=off -I. -std=c++17 -o compress compressor-standalone.cpp
+    g++ -O3 -march=native -fopenmp -mno-fma -ffp-contract=off -I. -std=c++17 -o decompress decompressor-standalone.cpp
 
 For the GPU, use:
 
-    nvcc -O3 -arch=sm_70 -fmad=false -Xcompiler "-O3 -march=native -fopenmp -mno-fma" -I. -o compress compressor-standalone.cu
-    nvcc -O3 -arch=sm_70 -fmad=false -Xcompiler "-O3 -march=native -fopenmp -mno-fma" -I. -o decompress decompressor-standalone.cu
+    nvcc -O3 -arch=sm_70 -fmad=false -Xcompiler "-O3 -march=native -fopenmp -mno-fma -ffp-contract=off" -I. -o compress compressor-standalone.cu
+    nvcc -O3 -arch=sm_70 -fmad=false -Xcompiler "-O3 -march=native -fopenmp -mno-fma -ffp-contract=off" -I. -o decompress decompressor-standalone.cu
 
 You may have to adjust these commands and flags to your system and compiler. For instance, the *sm_70* should be changed to match your GPU's compute capability.
 
@@ -238,14 +238,14 @@ Predictors guess the next value by extrapolating it from prior values and then s
 
 **DIFF**: This component computes the difference sequence (also called "delta modulation") by subtracting the previous value from the current value and outputting the resulting difference. If neighboring values correlate with each other, this tends to produce a more compressible sequence.
 
-**DIFFMS**: This component computes the difference sequence like DIFF does but outputs the result in magnitude-sign format, which is often more compressible because it tends to produce values with many leading zero bits.
+**DIFFMS**: This component computes the difference sequence like DIFF does but outputs the result in sign-magnitude format, which is often more compressible because it tends to produce values with many leading zero bits.
 
 
 ### Reducers
 
 Reducers are the only components that can compress the data. They exploit various types of redundancies to do so.
 
-**CLOG**: This component breaks the data up into 32 subchunks, determines the smallest number of leading zero bits of all values in a subchunk, records this count, and then stores only the remaining bits of each value. This compresses data with leading zero bits.
+**CLOG**: This component breaks the data up into 32 subchunks, determines the smallest amount of leading zero bits of all values in a subchunk, records this count, and then stores only the remaining bits of each value. This compresses data with leading zero bits.
 
 **HCLOG**: This component works like CLOG except it first applies the TCMS transformation to all values in a subchunk that yield no leading zero bits when using CLOG.
 
@@ -482,7 +482,7 @@ For testing, you can generate the LC framework using the *generate_Hybrid_LC-Fra
 
 ## Team
 
-The LC framework is being developed at Texas State University by Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, and Yiqian Liu under the supervision of Prof. Martin Burtscher and is joint work with Sheng Di and Franck Cappello from Argonne National Laboratory.
+The LC framework is being developed at Texas State University by Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Anju Mongandampulath Akathoott under the supervision of Prof. Martin Burtscher and is joint work with Sheng Di and Franck Cappello from Argonne National Laboratory.
 
 
 ## Sponsor

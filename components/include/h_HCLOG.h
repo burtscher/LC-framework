@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -84,7 +84,7 @@ static inline bool h_HCLOG(int& csize, byte in [CS], byte out [CS])
     // figure out number of bits needed
     int cnt = 0;
     if (max_val != 0) {
-      cnt = (sizeof(T) == 8) ? (64 - __builtin_clzll(max_val)) : (sizeof(unsigned int) * 8 - __builtin_clz((unsigned int)max_val));
+      cnt = (sizeof(T) == 8) ? (sizeof(unsigned long long) * 8 - __builtin_clzll((unsigned long long)max_val)) : (sizeof(unsigned int) * 8 - __builtin_clz((unsigned int)max_val));
     }
     bits += cnt * (end - beg);
     ln[i] = cnt;
@@ -176,7 +176,7 @@ static inline void h_iHCLOG(int& csize, byte in [CS], byte out [CS])
   }
 
   // decode data values
-  const int orig_csize = in[4] + ((int)in[5] << 8);
+  const int orig_csize = *((unsigned short*)&in[4]);
   const int size = orig_csize / sizeof(T);
   int end = 0;
   for (int i = 0; i < SC; i++) {

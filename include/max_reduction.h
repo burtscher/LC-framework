@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -49,13 +49,13 @@ static __device__ inline T block_max_reduction(T val, void* buffer)  // returns 
   T* const s_carry = (T*)buffer;
   assert(WS >= warps);
 
-  val = max(val, __shfl_xor_sync(~0, val, 1));
-  val = max(val, __shfl_xor_sync(~0, val, 2));
-  val = max(val, __shfl_xor_sync(~0, val, 4));
-  val = max(val, __shfl_xor_sync(~0, val, 8));
-  val = max(val, __shfl_xor_sync(~0, val, 16));
+  val = max(val, __shfl_xor(val, 1));
+  val = max(val, __shfl_xor(val, 2));
+  val = max(val, __shfl_xor(val, 4));
+  val = max(val, __shfl_xor(val, 8));
+  val = max(val, __shfl_xor(val, 16));
 #if defined(WS) && (WS == 64)
-  val = max(val, __shfl_xor_sync(~0, val, 32));
+  val = max(val, __shfl_xor(val, 32));
 #endif
   if (lane == 0) s_carry[warp] = val;
   __syncthreads();  // s_carry written
@@ -63,18 +63,18 @@ static __device__ inline T block_max_reduction(T val, void* buffer)  // returns 
   if constexpr (warps > 1) {
     if (warp == 0) {
       val = (lane < warps) ? s_carry[lane] : 0;
-      val = max(val, __shfl_xor_sync(~0, val, 1));
+      val = max(val, __shfl_xor(val, 1));
       if constexpr (warps > 2) {
-        val = max(val, __shfl_xor_sync(~0, val, 2));
+        val = max(val, __shfl_xor(val, 2));
         if constexpr (warps > 4) {
-          val = max(val, __shfl_xor_sync(~0, val, 4));
+          val = max(val, __shfl_xor(val, 4));
           if constexpr (warps > 8) {
-            val = max(val, __shfl_xor_sync(~0, val, 8));
+            val = max(val, __shfl_xor(val, 8));
             if constexpr (warps > 16) {
-              val = max(val, __shfl_xor_sync(~0, val, 16));
+              val = max(val, __shfl_xor(val, 16));
               #if defined(WS) && (WS == 64)
               if constexpr (warps > 32) {
-                val = max(val, __shfl_xor_sync(~0, val, 32));
+                val = max(val, __shfl_xor(val, 32));
               }
               #endif
             }

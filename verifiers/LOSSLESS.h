@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -37,11 +37,11 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 */
 
 
-static void LOSSLESS(const int size, const byte* const __restrict__ data1, const byte* const __restrict__ data2, const int paramc, const double paramv [])
+static void LOSSLESS(const long long size, const byte* const __restrict__ data1, const byte* const __restrict__ data2, const int paramc, const double paramv [])
 {
-  for (int i = 0; i < size; i++) {
+  for (long long i = 0; i < size; i++) {
     if (data1[i] != data2[i]) {
-      fprintf(stderr, "LOSSLESS ERROR: decoded data differs from original data at byte %d: '%x' vs '%x'\n\n", i, data1[i], data2[i]);
+      fprintf(stderr, "LOSSLESS ERROR: decoded data differs from original data at byte %lld: '%x' vs '%x'\n\n", i, data1[i], data2[i]);
       throw std::runtime_error("LC error");
     }
   }
