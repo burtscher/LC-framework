@@ -471,7 +471,7 @@ The following code provides an example of a CPU preprocessor called **ADD_i32** 
 
 ## Notes
 
-LC currently supports inputs of up to 2 GB in size.
+The March 2025 release of LC is not compatible with the files produced by earlier releases because the new release supports file sizes above 2 GB.
 
 LC currently only works on little-endian systems.
 
