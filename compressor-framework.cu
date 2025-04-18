@@ -352,7 +352,7 @@ int main(int argc, char* argv [])
   long long* d_fullcarry;
   cudaMalloc((void **)&d_fullcarry, chunks * sizeof(long long));
   d_reset<<<1, 1>>>();
-  cudaMemset(d_fullcarry, 0, chunks * sizeof(byte));
+  cudaMemset(d_fullcarry, 0, chunks * sizeof(long long));
   d_encode<<<blocks, TPB>>>(dpreencdata, dpreencsize, d_encoded, d_encsize, d_fullcarry);
   cudaFree(d_fullcarry);
   cudaDeviceSynchronize();
