@@ -65,7 +65,7 @@ def update_enum(filename, comps, item):
   with open(filename, 'w') as f:
     f.write("#ifndef LC_" + item + "_H\n")
     f.write("#define LC_" + item + "_H\n\n")
-    f.write("enum {NUL_" + item)
+    f.write("enum LC_" + item + " {NUL_" + item)
     for c in comps:
       if item == 'VERIFIER':
         c = c[0:]
