@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
+Copyright (c) 2021-2026, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -149,7 +149,7 @@ static __device__ inline bool d_HCLOG(int& csize, byte in [CS], byte out [CS], b
   __syncthreads();
 
   // encode logn values
-  if (lane < SC) {
+  if (tid < SC) {
     const int val = ln[lane];
     const int loc = SC + 16 + (CB * lane);
     const int pos = loc / TB_i;

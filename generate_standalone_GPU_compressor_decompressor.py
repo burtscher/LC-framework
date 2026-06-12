@@ -5,7 +5,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
+Copyright (c) 2021-2026, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -198,7 +198,7 @@ with open("decompressor-standalone.cu", "r+") as f:
 with open("compressor-standalone.cu", "r+") as f:
   contents = f.read()
   m = re.search(r"##print-beg##[\s\S]*##print-end##", contents)
-  str_to_add = '  printf(\"GPU LC 1.2 Algorithm:'
+  str_to_add = '  printf(\"GPU LC 1.3 Algorithm:'
   for c in pre_uni:
       str_to_add += " " + str(c[2:])
   for c in comp_uni:
@@ -213,7 +213,7 @@ with open("compressor-standalone.cu", "r+") as f:
 with open("decompressor-standalone.cu", "r+") as f:
   contents = f.read()
   m = re.search(r"##print-beg##[\s\S]*##print-end##", contents)
-  str_to_add = '  printf(\"GPU LC 1.2 Algorithm:'
+  str_to_add = '  printf(\"GPU LC 1.3 Algorithm:'
   for c in pre_uni:
       str_to_add += " " + str(c[2:])
   for c in comp_uni:

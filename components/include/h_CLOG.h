@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
+Copyright (c) 2021-2026, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -44,16 +44,16 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 template <typename T>
 static inline bool h_CLOG(int& csize, byte in [CS], byte out [CS])
 {
-  assert(std::is_unsigned<T>::value);
-  const int TB = sizeof(T) * 8;  // number of bits in T
-  const int SC = 32;  // subchunks
-  const int CB = (32 - __builtin_clz(sizeof(T))) + 3;  // counter bits
-  assert((1 << CB) > TB);
-  assert((1 << (CB - 1)) <= TB);
+  static_assert(std::is_unsigned<T>::value);
+  const int constexpr TB = sizeof(T) * 8;  // number of bits in T
+  const int constexpr SC = 32;  // subchunks [do not change]
+  const int constexpr CB = (sizeof(T) >= 4) ? ((sizeof(T) == 8) ? 7 : 6) : ((sizeof(T) == 2) ? 5 : 4);  // counter bits
+  static_assert((1 << CB) > TB);
+  static_assert((1 << (CB - 1)) <= TB);
 
-  // T casts
-  T* in_t = (T*)in;
-  T* out_t = (T*)out;
+  // type casts
+  T* const in_t = (T*)in;
+  T* const out_t = (T*)out;
   const int size = csize / sizeof(T);
 
   // determine bits needed for each subchunk
@@ -63,30 +63,36 @@ static inline bool h_CLOG(int& csize, byte in [CS], byte out [CS])
   for (int i = 0; i < SC; i++) {
     const int beg = end;
     end = (i + 1) * size / SC;
-    T max_val = 0;
+    T or_val = 0;
     for (int j = beg; j < end; j++) {
-      max_val = std::max(max_val, in_t[j]);
+      or_val |= in_t[j];
     }
     int cnt = 0;
-    if (max_val != 0) {
-      cnt = (sizeof(T) == 8) ? (sizeof(unsigned long long) * 8 - __builtin_clzll((unsigned long long)max_val)) : (sizeof(unsigned int) * 8 - __builtin_clz((unsigned int)max_val));
+    if (or_val != 0) {
+      cnt = (sizeof(T) == 8) ? (sizeof(unsigned long long) * 8 - __builtin_clzll((unsigned long long)or_val)) : (sizeof(unsigned int) * 8 - __builtin_clz((unsigned int)or_val));
     }
     bits += cnt * (end - beg);
     ln[i] = cnt;
   }
 
   // check if encoded data fits
-  const int extra = csize % sizeof(T);
   const int newsize = (16 + CB * SC + bits + 7) / 8;
+  const int extra = csize % sizeof(T);
   if (newsize + extra >= CS) return false;
 
   // clear out buffer
   memset(out_t, 0, newsize);
 
-  out[0] = csize & 0xFF;
-  out[1] = csize >> 8;
-  int loc = 16;
+  // output header
+  if constexpr (sizeof(T) > 1) {
+    out_t[0] = csize;
+  } else {
+    out[0] = csize;
+    out[1] = csize >> 8;
+  }
+
   // encode logn values
+  int loc = 16;
   for (int i = 0; i < SC; i++) {
     const T val = ln[i];
     const int pos = loc / TB;
@@ -104,20 +110,24 @@ static inline bool h_CLOG(int& csize, byte in [CS], byte out [CS])
     const int logn = ln[i];
     const int beg = end;
     end = (i + 1) * size / SC;
-    for (int j = beg; j < end; j++) {
-      const T val = in_t[j];
-      const int pos = loc / TB;
-      const int shift = loc % TB;
-      out_t[pos] |= val << shift;
-      if (TB - logn < shift) {
-        out_t[pos + 1] = val >> (TB - shift);
+    if (logn > 0) {
+      for (int j = beg; j < end; j++) {
+        const T val = in_t[j];
+        const int pos = loc / TB;
+        const int shift = loc % TB;
+        out_t[pos] |= val << shift;
+        if (TB - logn < shift) {
+          out_t[pos + 1] = val >> (TB - shift);
+        }
+        loc += logn;
       }
-      loc += logn;
     }
   }
 
   // copy extra bytes at end and update csize
-  for (int i = 0; i < extra; i++) out[newsize + i] = in[csize - extra + i];
+  if constexpr (sizeof(T) > 1) {
+    for (int i = 0; i < extra; i++) out[newsize + i] = in[csize - extra + i];
+  }
   csize = newsize + extra;
   return true;
 }
@@ -126,21 +136,21 @@ static inline bool h_CLOG(int& csize, byte in [CS], byte out [CS])
 template <typename T>
 static inline void h_iCLOG(int& csize, byte in [CS], byte out [CS])
 {
-  assert(std::is_unsigned<T>::value);
-  const int TB = sizeof(T) * 8;  // number of bits in T
-  const int SC = 32;  // subchunks
-  const int CB = (32 - __builtin_clz(sizeof(T))) + 3;  // counter bits
-  assert((1 << CB) > TB);
-  assert((1 << (CB - 1)) <= TB);
+  static_assert(std::is_unsigned<T>::value);
+  const int constexpr TB = sizeof(T) * 8;  // number of bits in T
+  const int constexpr SC = 32;  // subchunks [do not change]
+  const int constexpr CB = (sizeof(T) >= 4) ? ((sizeof(T) == 8) ? 7 : 6) : ((sizeof(T) == 2) ? 5 : 4);  // counter bits
+  static_assert((1 << CB) > TB);
+  static_assert((1 << (CB - 1)) <= TB);
 
-  // T casts
-  T* in_t = (T*)in;
-  T* out_t = (T*)out;
+  // type casts
+  T* const in_t = (T*)in;
+  T* const out_t = (T*)out;
 
   // decode logn values
-  byte ln [SC];
   int loc = 16;
-  const T mask = ((1 << CB) - 1);
+  byte ln [SC];
+  const T constexpr mask = ((1 << CB) - 1);
   for (int i = 0; i < SC; i++) {
     const int pos = loc / TB;
     const int shift = loc % TB;
@@ -160,22 +170,30 @@ static inline void h_iCLOG(int& csize, byte in [CS], byte out [CS])
     const int logn = ln[i];
     const int beg = end;
     end = (i + 1) * size / SC;
-    const T mask = (sizeof(T) < 8) ? ((1ULL << logn) - 1) : ((logn == 64) ? (~0ULL) : ((1ULL << logn) - 1));
-    for (int j = beg; j < end; j++) {
-      const int pos = loc / TB;
-      const int shift = loc % TB;
-      T res = in_t[pos] >> shift;
-      if (TB - logn < shift) {
-        res |= in_t[pos + 1] << (TB - shift);
+    if (logn > 0) {
+      const T mask = (sizeof(T) < 8) ? ((1ULL << logn) - 1) : ((logn == 64) ? (~0ULL) : ((1ULL << logn) - 1));
+      for (int j = beg; j < end; j++) {
+        const int pos = loc / TB;
+        const int shift = loc % TB;
+        T res = in_t[pos] >> shift;
+        if (TB - logn < shift) {
+          res |= in_t[pos + 1] << (TB - shift);
+        }
+        out_t[j] = res & mask;
+        loc += logn;
       }
-      out_t[j] = res & mask;
-      loc += logn;
+    } else {
+      for (int j = beg; j < end; j++) {
+        out_t[j] = 0;
+      }
     }
   }
 
   // copy extra bytes at end and update csize
-  const int extra = orig_csize % sizeof(T);
-  for (int i = 0; i < extra; i++) out[orig_csize - extra + i] = in[csize - extra + i];
+  if constexpr (sizeof(T) > 1) {
+    const int extra = orig_csize % sizeof(T);
+    for (int i = 0; i < extra; i++) out[orig_csize - extra + i] = in[csize - extra + i];
+  }
   csize = orig_csize;
 }
 

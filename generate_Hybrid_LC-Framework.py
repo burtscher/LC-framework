@@ -5,7 +5,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
+Copyright (c) 2021-2026, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -65,7 +65,7 @@ def update_enum(filename, comps, item):
   with open(filename, 'w') as f:
     f.write("#ifndef LC_" + item + "_H\n")
     f.write("#define LC_" + item + "_H\n\n")
-    f.write("enum {NUL_" + item)
+    f.write("enum LC_" + item + " {NUL_" + item)
     for c in comps:
       if item == 'VERIFIER':
         c = c[0:]

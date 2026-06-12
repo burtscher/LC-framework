@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
+Copyright (c) 2021-2026, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -79,6 +79,7 @@ static inline __device__ int __reduce_add_sync(const int mask, int val)
   #define __trap() abort()
   #define atomicOr_block(...) atomicOr(__VA_ARGS__)
   #define atomicAdd_block(...) atomicAdd(__VA_ARGS__)
+  #define atomicSub_block(...) atomicSub(__VA_ARGS__)
   namespace cuda::std { using ::std::numeric_limits; }
 #endif
 

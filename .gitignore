@@ -17,3 +17,4 @@ decompressor-standalone.cu
 *.f32
 *.exe
 *.exe.*
+*.prehip

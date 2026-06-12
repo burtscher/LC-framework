@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
+Copyright (c) 2021-2026, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -47,58 +47,57 @@ static __device__ inline bool d_CLOG(int& csize, byte in [CS], byte out [CS], by
   const int tid = threadIdx.x;
   const int lane = threadIdx.x % WS;
   const int warp = threadIdx.x / WS;
-  const int warps = TPB / WS;
+  const int constexpr warps = TPB / WS;
 
-  assert(std::is_unsigned<T>::value);
-  const int TB = sizeof(T) * 8;  // number of bits in T
-  const int SC = 32;  // subchunks [do not change]
-  const int CB = (32 - __clz((int)sizeof(T))) + 3;  // counter bits
-  assert((1 << CB) > TB);
-  assert((1 << (CB - 1)) <= TB);
-  assert(WS >= SC);
-  assert(SC == sizeof(int) * 8);
-  assert(sizeof(int) == 4);
+  static_assert(std::is_unsigned<T>::value);
+  const int constexpr TB = sizeof(T) * 8;  // number of bits in T
+  const int constexpr SC = 32;  // subchunks [do not change]
+  const int constexpr CB = (sizeof(T) >= 4) ? ((sizeof(T) == 8) ? 7 : 6) : ((sizeof(T) == 2) ? 5 : 4);  // counter bits
+  static_assert((1 << CB) > TB);
+  static_assert((1 << (CB - 1)) <= TB);
+  static_assert(WS >= SC);
+  static_assert(SC == sizeof(int) * 8);
+  static_assert(sizeof(int) == 4);
 
   // T casts
   T* const in_t = (T*)in;
   int* const out_i = (int*)out;  // int
-  const int TB_i = sizeof(int) * 8;
-  const int size = csize / sizeof(T);
+  const int constexpr TB_i = sizeof(int) * 8;
 
   byte* const ln = temp;
   int* const bits = (int*)&temp[SC];
   int* const total_bits = (int*)&bits[WS];
 
   // determine bits needed for each subchunk
+  const int size = csize / sizeof(T);
   for (int i = warp; i < SC; i += warps) {
     const int beg = i * size / SC;
     const int end = (i + 1) * size / SC;
 
-    T max_val = 0;
+    T or_val = 0;
     // max of values for each thread
     for (int j = beg + lane; j < end; j += WS) {
-      max_val = max(max_val, in_t[j]);
+      or_val |= in_t[j];
     }
 
-    // warp level max
-    max_val = max(max_val, __shfl_xor(max_val, 1));
-    max_val = max(max_val, __shfl_xor(max_val, 2));
-    max_val = max(max_val, __shfl_xor(max_val, 4));
-    max_val = max(max_val, __shfl_xor(max_val, 8));
-    max_val = max(max_val, __shfl_xor(max_val, 16));
-#if defined(WS) && (WS == 64)
-    max_val = max(max_val, __shfl_xor(max_val, 32));
-#endif
+    // warp level or
+    or_val |= __shfl_xor(or_val, 1);
+    or_val |= __shfl_xor(or_val, 2);
+    or_val |= __shfl_xor(or_val, 4);
+    or_val |= __shfl_xor(or_val, 8);
+    or_val |= __shfl_xor(or_val, 16);
+    #if defined(WS) && (WS == 64)
+    or_val |= __shfl_xor(or_val, 32);
+    #endif
 
-    // use approach yielding smaller max_val
     if (lane == 0) {
       // figure out number of bits needed
       int cnt = 0;
-      if (max_val != 0) {
-        cnt = (sizeof(T) == 8) ? (64 - __clzll(max_val)) : (sizeof(unsigned int) * 8 - __clz((unsigned int)max_val));
+      if (or_val != 0) {
+        cnt = (sizeof(T) == 8) ? (sizeof(unsigned long long) * 8 - __clzll(or_val)) : (sizeof(unsigned int) * 8 - __clz((unsigned int)or_val));
       }
       bits[i] = cnt * (end - beg); // total bits of each chunk
-      ln[i] = cnt;  // logn value for each chunk
+      ln[i] = cnt;  // logn value for each subchunk
     }
   }
   __syncthreads();
@@ -123,8 +122,8 @@ static __device__ inline bool d_CLOG(int& csize, byte in [CS], byte out [CS], by
   __syncthreads();
 
   // check if encoded data fits
-  const int extra = csize % sizeof(T);
   const int newsize = (16 + CB * SC + *total_bits + 7) / 8;
+  const int extra = csize % sizeof(T);
   if (newsize + extra >= CS) return false;
 
   // clear out buffer
@@ -132,7 +131,7 @@ static __device__ inline bool d_CLOG(int& csize, byte in [CS], byte out [CS], by
   __syncthreads();
 
   // encode logn values
-  if (lane < SC) {
+  if (tid < SC) {
     const int val = ln[lane];
     const int loc = 16 + (CB * lane);
     const int pos = loc / TB_i;
@@ -146,26 +145,28 @@ static __device__ inline bool d_CLOG(int& csize, byte in [CS], byte out [CS], by
   // encode data values
   for (int i = warp; i < SC; i += warps) {
     const int logn = ln[i];
-    const int beg = i * size / SC;
-    const int end = (i + 1) * size / SC;
-    const int offs = 16 + CB * SC + bits[i];
-    for (int j = beg + lane; j < end; j += WS) {
-      const T val = in_t[j];
-      const int loc = offs + (j - beg) * logn;
-      if constexpr (sizeof(T) < 8) {
-        const int pos = loc / TB_i;
-        const int shift = loc % TB_i;
-        atomicOr_block(&out_i[pos], (unsigned int)val << shift);
-        if (TB_i - logn < shift) {
-          atomicOr_block(&out_i[pos + 1], (unsigned int)val >> (TB_i - shift));
-        }
-      } else {
-        long long* const out_l = (long long*)out;
-        const int pos = loc / TB;
-        const int shift = loc % TB;
-        atomicOr_block((unsigned long long *)&out_l[pos], val << shift);
-        if (TB - logn < shift) {
-          atomicOr_block((unsigned long long *)&out_l[pos + 1], val >> (TB - shift));
+    if (logn > 0) {
+      const int beg = i * size / SC;
+      const int end = (i + 1) * size / SC;
+      const int offs = 16 + CB * SC + bits[i];
+      for (int j = beg + lane; j < end; j += WS) {
+        const T val = in_t[j];
+        const int loc = offs + (j - beg) * logn;
+        if constexpr (sizeof(T) < 8) {
+          const int pos = loc / TB_i;
+          const int shift = loc % TB_i;
+          atomicOr_block(&out_i[pos], (unsigned int)val << shift);
+          if (TB_i - logn < shift) {
+            atomicOr_block(&out_i[pos + 1], (unsigned int)val >> (TB_i - shift));
+          }
+        } else {
+          long long* const out_l = (long long*)out;
+          const int pos = loc / TB;
+          const int shift = loc % TB;
+          atomicOr_block((unsigned long long *)&out_l[pos], val << shift);
+          if (TB - logn < shift) {
+            atomicOr_block((unsigned long long *)&out_l[pos + 1], val >> (TB - shift));
+          }
         }
       }
     }
@@ -193,15 +194,15 @@ static __device__ inline void d_iCLOG(int& csize, byte in [CS], byte out [CS], b
   const int lane = threadIdx.x % WS;
   const int warp = threadIdx.x / WS;
 
-  assert(std::is_unsigned<T>::value);
-  const int TB = sizeof(T) * 8;  // number of bits in T
-  const int SC = 32;  // subchunks [do not change]
-  const int CB = (32 - __clz((int)sizeof(T))) + 3;  // counter bits
-  assert((1 << CB) > TB);
-  assert((1 << (CB - 1)) <= TB);
-  assert(WS >= SC);
+  static_assert(std::is_unsigned<T>::value);
+  const int constexpr TB = sizeof(T) * 8;  // number of bits in T
+  const int constexpr SC = 32;  // subchunks [do not change]
+  const int constexpr CB = (sizeof(T) >= 4) ? ((sizeof(T) == 8) ? 7 : 6) : ((sizeof(T) == 2) ? 5 : 4);  // counter bits
+  static_assert((1 << CB) > TB);
+  static_assert((1 << (CB - 1)) <= TB);
+  static_assert(WS >= SC);
 
-  // T casts
+  // type casts
   T* const in_t = (T*)in;
   T* const out_t = (T*)out;
   byte* const ln = (byte*)temp;
@@ -210,7 +211,7 @@ static __device__ inline void d_iCLOG(int& csize, byte in [CS], byte out [CS], b
   const int size = orig_csize / sizeof(T);
 
   // decode logn values
-  const T mask = ((1 << CB) - 1);
+  const T constexpr mask = ((1 << CB) - 1);
   if (warp == 0) {
     T res = 0;
     if (lane < SC) {
@@ -248,17 +249,23 @@ static __device__ inline void d_iCLOG(int& csize, byte in [CS], byte out [CS], b
     const int logn = ln[i];
     const int beg = i * size / SC;
     const int end = (i + 1) * size / SC;
-    const T mask = (sizeof(T) < 8) ? ((1ULL << logn) - 1) : ((logn == 64) ? (~0ULL) : ((1ULL << logn) - 1));
-    const int offs = 16 + SC * CB + bits[i];
-    for (int j = beg + lane; j < end; j += WS) {
-      const int loc = offs + (j - beg) * logn;
-      const int pos = loc / TB;
-      const int shift = loc % TB;
-      T res = in_t[pos] >> shift;
-      if (TB - logn < shift) {
-        res |= in_t[pos + 1] << (TB - shift);
+    if (logn > 0) {
+      const T mask = (sizeof(T) < 8) ? ((1ULL << logn) - 1) : ((logn == 64) ? (~0ULL) : ((1ULL << logn) - 1));
+      const int offs = 16 + SC * CB + bits[i];
+      for (int j = beg + lane; j < end; j += WS) {
+        const int loc = offs + (j - beg) * logn;
+        const int pos = loc / TB;
+        const int shift = loc % TB;
+        T res = in_t[pos] >> shift;
+        if (TB - logn < shift) {
+          res |= in_t[pos + 1] << (TB - shift);
+        }
+        out_t[j] = res & mask;
       }
-      out_t[j] = res & mask;
+    } else {
+      for (int j = beg + lane; j < end; j += WS) {
+        out_t[j] = 0;
+      }
     }
   }
 

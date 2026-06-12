@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
+Copyright (c) 2021-2026, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -79,8 +79,6 @@ static const int max_stages = 8;  // cannot be more than 8
   #include <cuda.h>
   #if !defined(__HIPCC__)
   #include <cuda/std/limits>
-  #endif
-  #if defined(__CUDA_ARCH__)
   #include <cuda/atomic>  // a CUDA-only library that cannot be automatically replaced by HIPIFY
   #endif
   #include "include/macros.h"
@@ -218,7 +216,7 @@ static void h_preprocess_decode(long long& hpredecsize, byte*& hpredecdata, std:
 
 
 #ifdef USE_GPU
-static void __global__ initBestSize(unsigned short* const bestSize, const int chunks)
+static __global__ void initBestSize(unsigned short* const bestSize, const int chunks)
 {
   if ((threadIdx.x == 0) && (WS != warpSize)) {printf("ERROR: WS must be %d\n\n", warpSize); __trap();}  // debugging only
   for (int i = threadIdx.x; i < chunks; i += TPB) {
@@ -227,11 +225,11 @@ static void __global__ initBestSize(unsigned short* const bestSize, const int ch
 }
 
 
-static void __global__ dbestChunkSize(const byte* const __restrict__ input, unsigned short* const __restrict__ bestSize)
+static __global__ void dbestChunkSize(const byte* const __restrict__ input, unsigned short* const __restrict__ bestSize)
 {
-  int* const head_in = (int*)input;
-  const int outsize = head_in[0];
-  const int chunks = (outsize + CS - 1) / CS;  // round up
+  long long* const head_in = (long long*)input;
+  const long long outsize = head_in[0];
+  const long long chunks = (outsize + CS - 1) / CS;  // round up
   unsigned short* const size_in = (unsigned short*)&head_in[1];
   for (int chunkID = threadIdx.x; chunkID < chunks; chunkID += TPB) {
     bestSize[chunkID] = min(bestSize[chunkID], size_in[chunkID]);
@@ -239,7 +237,7 @@ static void __global__ dbestChunkSize(const byte* const __restrict__ input, unsi
 }
 
 
-static void __global__ dcompareData(const long long size, const byte* const __restrict__ data1, const byte* const __restrict__ data2, unsigned long long* const __restrict__ min_loc)
+static __global__ void dcompareData(const long long size, const byte* const __restrict__ data1, const byte* const __restrict__ data2, unsigned long long* const __restrict__ min_loc)
 {
   const long long i = threadIdx.x + (long long)blockIdx.x * TPB;
   if (i < size) {

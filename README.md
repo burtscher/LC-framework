@@ -23,14 +23,14 @@ Figure 1: LC's process of chaining (a.k.a. pipelining) *n* data transformations 
 
 LC supports both exhaustive search for the best algorithm in the search space as well as a genetic-algorithm-based search for cases where the exhaustive search would take too long. In addition, the user can optionally supply a regular expression to reduce the size of the search space. LC is able to search for the best algorithm based solely on compression ratio or based on both compression ratio and throughput. In the latter case, it outputs the Pareto front, that is, a set of algorithms that represent different compression-ratio versus speed tradeoffs.
 
-LC can run on and generate algorithms for CPUs and GPUs. The algorithms are deterministic and fully compatible, meaning the user may compress a file on either the CPU or GPU and decompress the resulting file on either the CPU or GPU. The CPU code is written in C++ and parallelized using OpenMP. The GPU code is written in CUDA. Once a suitable algorithm has been found, the user can employ LC's code generator to produce a standalone compressor and decompressor for that algorithm that does not require the framework.
+LC can run on and generate algorithms for CPUs and GPUs. The algorithms are deterministic and fully compatible, meaning the user may compress a file on either the CPU or GPU and decompress the resulting file on either the CPU or GPU. The CPU code is written in C++ and parallelized using OpenMP. The GPU code is written in CUDA. A HIP version is also included. Once a suitable algorithm has been found, the user can employ LC's code generator to produce a standalone compressor and decompressor for that algorithm that does not require the framework.
 
 LC includes an extensive library of components and preprocessors. Most of them support 1-, 2-, 4-, and 8-byte word sizes. Both libraries are user customizable and extensible, meaning users are able to add their own data transformations by following the API outlined in the tutorial. LC then includes the new transformations in its search for a good compression algorithm and can use them in the code generator.
 
 
 ### Lossy-Mode Features
 
-In addition to lossless algorithms, LC can also generate lossy algorithms for 32-bit single and 64-bit double-precision floating-point data. It supports absolute, relative, normalized absolute, and combined absolute & relative error bounds. Moreover, it guarantees that these point-wise error bounds are not violated by losslessly encoding any value that it cannot quantize within the provided error bound. It supports all floating-point values, including infinities, not-a-number (NaN), and denormals. Each quantizer provides two modes, one that replaces the lost bits by zeros and another that replaces them by random bits to minimize autocorrelation between the errors.
+In addition to lossless algorithms, LC can also generate lossy algorithms for 32-bit single and 64-bit double-precision floating-point data. It supports absolute, relative, normalized absolute, and combined absolute & relative error bounds. Moreover, it guarantees that these point-wise error bounds are not violated by losslessly encoding any value that it cannot quantize within the provided error bound. It supports all floating-point values, including infinities, not-a-number (NaN), and denormals. Some of the quantizers provide two modes, one that replaces the lost bits by zeros and another that replaces them by random bits to minimize autocorrelation between the errors.
 
 
 ---
@@ -85,7 +85,7 @@ If you want to see more stats on the input and output data as well as throughput
 
     ./lc input.dat AL "" "BIT_4 RLE_1"
 
-Note that using *AL* also turns on verification to make sure the decompressed data is bit-by-bit equivalent to the original data.
+Note that using *AL* also turns on verification to make sure the decompressed data is bit-for-bit equivalent to the original data.
 
 One of the key strengths of LC is its ability to automatically search for a good compression algorithm. For example, if you want LC to try all available components in the second stage, type:
 
@@ -107,7 +107,7 @@ The output lists the number of algorithms that will be tested as well as which c
 
     ./lc input.dat CR "" "DIFF_4 .+ .+ R.+|C.+|H.+"
 
-If available, we recommend using the GPU version of LC as it tends to be much faster than the CPU version. To further speed up the search, LC includes a genetic algorithm (GA) to quickly search for a good but not necessarily the best algorithm. If you want to run the GA to find a good pipeline with 5 stages, enter the following command:
+If available, we recommend using the GPU version of LC as it tends to be much faster than the CPU version, particularly for large inputs. To further speed up the search, LC includes a genetic algorithm (GA) to quickly search for a good but not necessarily the best algorithm. If you want to run the GA to find a good pipeline with 5 stages, enter the following command:
 
     ./scripts/ga_search.py -s 5 input.dat
 
@@ -152,7 +152,7 @@ The preprocessors work with the *CR*, *EX*, and *AL* modes. However, since both 
 
 See the ./verifiers/ directory for additional available verifiers or the description below.
 
-These quantizers replace any lost bits with zeros. If you prefer those bits be replaced by random data to minimize autocorrelation, use:
+These quantizers replace any lost bits with zeros. If you prefer those bits be replaced by random data to minimize error autocorrelation, use:
 
     ./lc input.dat CR "QUANT_ABS_R_f32(0.01)" ".+ .+ R.+|C.+|H.+"
 
@@ -207,7 +207,7 @@ All LC compression pipelines start with zero or more *preprocessors* and end wit
 
 ## Available Components
 
-The LC framework breaks the input data up into chunks of 16 kB, each of which is compressed independently and in parallel using the selected components. All components are lossless. Most components support different word sizes. The number at the end of their names indicates the word size in bytes. For example, "_4" means the word size is 4 bytes (e.g., ints or floats). To structure the description of the components, we group them into the following four categories: mutators, shufflers, predictors, and reducers. The goal of the first three types is to better expose patterns so that the reducer components can compress the data more effectively. Only reducer components make sense the the last pipeline stage.
+The LC framework breaks the input data up into chunks of 16 kB, each of which is compressed independently and in parallel using the selected components. All components are lossless. Most components support different word sizes. The number at the end of their names indicates the word size in bytes. For example, "_4" means the word size is 4 bytes (e.g., ints or floats). To structure the description of the components, we group them into the following four categories: mutators, shufflers, predictors, and reducers. The goal of the first three types is to better expose patterns so that the reducer components can compress the data more effectively. Only reducer components make sense in the last pipeline stage.
 
 
 ### Mutators
@@ -216,38 +216,38 @@ Mutators computationally transform each value. This is done independently of oth
 
 **NUL**: This component performs the identity transformation, meaning it outputs the input verbatim. It is useful in that it allows longer pipelines to also cover algorithms with fewer stages.
 
-**TCMS**: This component converts each value from twos-complement to magnitude-sign representation, which is often easier to compress because it tends to yield more leading zero bits.
+**TCMS**: This component converts each value from two's-complement to magnitude-sign representation, which is often easier to compress because it tends to yield more leading zero bits.
 
-**DBEFS**: This component operates on IEEE-754 floating-point values. It first de-biases the exponent and then rearranges the data fields from sign, exponent, fraction order to (de-biased) exponent, fraction, sign order.
-
-**DBESF**: This component operates on IEEE-754 floating-point values. It first de-biases the exponent and then rearranges the data fields from sign, exponent, fraction order to (de-biased) exponent, sign, fraction order.
+**TCNB**: This component converts each value from two's-complement to negabinary representation, which is often easier to compress because it tends to yield more leading zero bits.
 
 
 ### Shufflers
 
 Shufflers rearrange the order of the values but perform no computation on them. Some shufflers reorder the bits or bytes within a word. None of them compress the data.
 
-**BIT**: This component is often referred to as "bit shuffle" or "bit transpose". It takes the most significant bit of each value in the input and outputs them together, then it takes the second most significant bit of each value and outputs them, and so on down to the least significant bit. This improves compressibility if the values tend to have the same bits in certain positions.
+**BIT**: This component is often referred to as "bit shuffle" or "bit transpose". It takes the most significant bit of each value in the input and outputs them together, then it takes the second most significant bit of each value and outputs them, and so on down to the least significant bit. This improves compressibility if the values tend to have the same bit values in certain positions.
 
-**TUPLk**: This component assumes the data to be a sequence of k-tuples, which it rearranges by listing all first tuple values, then all second tuple values, and so on. For example, a tuple size of k = 3 changes the linear sequence x1, y1, z1, x2, y2, z2, x3, y3, z3, x4, y4, z4 into x1, x2, x3, x4, y1, y2, y3, y4, z1, z2, z3, z4. This is beneficial as values belonging to the same "dimension" often correlate more with each other than with other values from within the same tuple.
+**TUPLk**: This component assumes the data to be a sequence of k-tuples, which it rearranges by listing all first tuple values, then all second tuple values, and so on. For example, a tuple size of k = 3 changes the linear sequence x1, y1, z1, x2, y2, z2, x3, y3, z3, x4, y4, z4 into x1, x2, x3, x4, y1, y2, y3, y4, z1, z2, z3, z4. This is beneficial as values belonging to the same position within a tuple often correlate more with each other than with other values from the same tuple.
 
 
 ### Predictors
 
 Predictors guess the next value by extrapolating it from prior values and then subtracting the prediction from the actual value, which yields a residual sequence. If the predictions are accurate, the residuals cluster around zero, making them easier to compress than the original data. Predictors per se do not compress the data.
 
-**DIFF**: This component computes the difference sequence (also called "delta modulation") by subtracting the previous value from the current value and outputting the resulting difference. If neighboring values correlate with each other, this tends to produce a more compressible sequence.
+**DIFF**: This component computes the difference sequence (also called "delta modulation" or "decorrelation") by subtracting the previous value from the current value and outputting the resulting difference. If neighboring values correlate with each other, this tends to produce a more compressible sequence.
 
-**DIFFMS**: This component computes the difference sequence like DIFF does but outputs the result in sign-magnitude format, which is often more compressible because it tends to produce values with many leading zero bits.
+**DIFFMS**: This component computes the difference sequence like DIFF does but outputs the result in magnitude-sign format, which is often more compressible because it tends to produce values with many leading zero bits.
+
+**DIFFNB**: This component computes the difference sequence like DIFF does but outputs the result in negabinary format, which is often more compressible because it tends to produce values with many leading zero bits.
 
 
 ### Reducers
 
 Reducers are the only components that can compress the data. They exploit various types of redundancies to do so.
 
-**CLOG**: This component breaks the data up into 32 subchunks, determines the smallest amount of leading zero bits of all values in a subchunk, records this count, and then stores only the remaining bits of each value. This compresses data with leading zero bits.
+**CLOG**: This component breaks the data up into 32 subchunks, determines the smallest number of leading zero bits of all values in a subchunk, records this count, and then stores only the remaining bits of each value. This compresses data with leading zero bits.
 
-**HCLOG**: This component works like CLOG except it first applies the TCMS transformation to all values in a subchunk that yield no leading zero bits when using CLOG.
+**HCLOG**: This component works like CLOG except it first applies the TCMS transformation to all values in a subchunk that yield no leading zero bits when using CLOG and records whether this was done using one bit per subchunk.
 
 **RLE**: This component performs run-length encoding. It counts how many times a value appears in a row. Then it counts how many non-repeating values follow. Both counts are emitted and followed by a single instance of the repeating value as well as all non-repeating values.
 
@@ -255,35 +255,47 @@ Reducers are the only components that can compress the data. They exploit variou
 
 **RZE**: This component creates a bitmap in which each bit specifies whether the corresponding word in the input is zero or not. It outputs the non-zero words and a compressed version of the bitmap like RRE does.
 
+**RARE**: This component applies RRE to the top k bits of each word and keeps the remaining bottom bits verbatim. For each chunk, it separately computes the k value that results in the highest compression ratio and stores it in the output.
+
+**RAZE**: This component applies RZE to the top k bits of each word and keeps the remaining bottom bits verbatim. For each chunk, it separately computes the k value that results in the highest compression ratio and stores it in the output.
+
 
 ## Available Preprocessors
 
-Preprocessors operate on the entire data (i.e., there is no chunking) and can be lossy or lossless. Some preprocessors support different data types. The end of their names indicates the data type for which they are designed. For example, "_f32" means the preprocessor targets 32-bit floating-point values. To structure the description of the preprocessors, we group them into lossy or lossless preprocessors.
+Preprocessors operate on the entire data (i.e., there is no chunking) and can be lossy or lossless. Some preprocessors support different data types. The end of their names indicates the data type for which they are designed. For example, "_f32" means the preprocessor targets 32-bit floating-point values. To structure the description of the preprocessors, we group them into lossy and lossless preprocessors.
 
 ### Lossless
 
-These quantizers support INFs and NaNs. The end of the quantizer name indicates the data type for which it is designed.
+These quantizers recreate the original data exactly. They support all possible IEEE 754 floating-point values, including INFs, NaNs, and denormals.
 
 **NUL**: This preprocessor performs the identity transformation, meaning it outputs the input verbatim. It takes no parameters.
 
-**LOR1D**: This preprocessor performs a 1-dimensional Lorenzo transformation, i.e., it computes a difference sequence.
-
-[//]: # "**LORxD**: This preprocessor performs an x-dimensional (x = 1, 2, or 3) Lorenzo transformation, i.e., it computes a multidimensional difference sequence. It takes x parameters specifying the size of the input along each dimension."
+**LOR1D**: This preprocessor performs a 1-dimensional Lorenzo transformation, i.e., it computes a difference sequence. It takes no parameters.
 
 
 ### Lossy Quantizers
 
-All quantizers require a parameter that specifies the maximally allowed error bound EB. They take an optional second parameter specifying a threshold. Any value whose magnitude is at or above the threshold is compressed losslessly and not quantized. The quantizers support INFs and NaNs. The end of the quantizer name indicates the data type for which it is designed.
+All lossy quantizers require a parameter that specifies the maximally allowed point-wise error bound EB. Some allow an optional second parameter specifying a threshold. Any value whose magnitude is at or above the threshold is retained losslessly and not quantized. These quantizers support all possible IEEE 754 floating-point values, including INFs, NaNs, and denormals.
 
 **QUANT_ABS_0**: These preprocessors quantize 32- and 64-bit floating-point values based on the provided point-wise absolute error bound. All values that end up in the same quantization bin are decompressed to the same value. These preprocessors guarantee that the original value V is decoded to a value V' such that V - EB <= V' <= V + EB.
 
-**QUANT_ABS_R**: These preprocessors quantize 32- and 64-bit floating-point values based on the provided point-wise absolute error bound. Each value from the same quantization bin is decompressed to a random value within the provided error bound to minimize autocorrelation. These preprocessors guarantee that the original value V is decoded to a value V' such that V - EB <= V' <= V + EB.
+**QUANT_ABS_R**: These preprocessors quantize 32- and 64-bit floating-point values based on the provided point-wise absolute error bound. Each value from the same quantization bin is decompressed to a random value within the provided error bound to minimize error autocorrelation. These preprocessors guarantee that the original value V is decoded to a value V' such that V - EB <= V' <= V + EB.
 
-**QUANT_R2R**: These preprocessors quantize 32- and 64-bit floating-point values just like their QUANT_ABS counterparts except the provided error bound is first multiplied by the range of values occurring in the input, where the range is the maximum value minus the minimum value.
+**QUANT_NOA_0**: These preprocessors quantize 32- and 64-bit floating-point values just like their QUANT_ABS_0 counterparts except the provided error bound is first multiplied by the range of values occurring in the input, where the range R is the maximum value minus the minimum value. These preprocessors guarantee that the original value V is decoded to a value V' such that V - EB \* R <= V' <= V + EB \* R.
+
+**QUANT_NOA_R**: These preprocessors quantize 32- and 64-bit floating-point values just like their QUANT_ABS_R counterparts except the provided error bound is first multiplied by the range of values occurring in the input, where the range R is the maximum value minus the minimum value. These preprocessors guarantee that the original value V is decoded to a value V' such that V - EB*R <= V' <= V + EB*R.
 
 **QUANT_REL_0**: These preprocessors quantize 32- and 64-bit floating-point values based on the provided point-wise relative error bound. All values that end up in the same quantization bin are decompressed to the same value. These preprocessors guarantee that the original value V is decoded to a value V' with the same sign such that |V| / (1 + EB) <= |V'| <= |V| \* (1 + EB).
 
-**QUANT_REL_R**: These preprocessors quantize 32- and 64-bit floating-point values based on the provided point-wise relative error bound. Each value from the same quantization bin is decompressed to a random value within the provided error bound to minimize autocorrelation. These preprocessors guarantee that the original value V is decoded to a value V' with the same sign such that |V| / (1 + EB) <= |V'| <= |V| \* (1 + EB).
+**QUANT_REL_R**: These preprocessors quantize 32- and 64-bit floating-point values based on the provided point-wise relative error bound. Each value from the same quantization bin is decompressed to a random value within the provided error bound to minimize error autocorrelation. These preprocessors guarantee that the original value V is decoded to a value V' with the same sign such that |V| / (1 + EB) <= |V'| <= |V| \* (1 + EB).
+
+**QUANT_ABS_REL_0**: These preprocessors combine QUANT_ABS_0 and QUANT_REL_0 and quantize 32- and 64-bit floating-point values based on the tighter of the two provided point-wise error bounds.
+
+**QUANT_ABS_REL_R**: These preprocessors combine QUANT_ABS_R and QUANT_REL_R and quantize 32- and 64-bit floating-point values based on the tighter of the two provided point-wise error bounds.
+
+**QUANT_IABS_0**: These preprocessors are similar to QUANT_ABS_0 but are implemented using integer operations only and losslessly quantize any value whose magnitude is at or above a certain internal threshold, including INFs and NaNs.
+
+**QUANT_INOA_0**: These preprocessors are similar to QUANT_NOA_0 but are implemented using integer operations only and losslessly quantize any value whose magnitude is at or above a certain internal threshold, including INFs and NaNs.
 
 
 ## Available Verifiers
@@ -296,11 +308,13 @@ Some verifiers support different data types. The end of their names indicates th
 
 **MAXABS**: This verifier takes a point-wise absolute error bound as parameter and only passes verification if every output value is within the specified error bound.
 
-**MAXR2R**: This verifier works like MAXABS except the provided error bound is first multiplied by the range of values occurring in the input, where the range is the maximum value minus the minimum value.
+**MAXNOA**: This verifier works like MAXABS except the provided error bound is first multiplied by the range of values occurring in the input, where the range is the maximum value minus the minimum value.
 
 **MAXREL**: This verifier takes a point-wise relative error bound as parameter and only passes verification if every output value is within the specified error bound.
 
-**MSE**: This verifier takes a mean squared error as parameter and only passes verification if the mean squared error of the output values is within the error bound.
+**MAXABSREL**: This verifier combines MAXABS and MAXREL and only passes verification if every output value is within the two specified error bounds.
+
+**MSE**: This verifier takes a mean squared error (MSE) as parameter and only passes verification if the mean squared error of the output values is within the error bound.
 
 **PSNR**: This verifier takes a peak-signal-to-noise ratio (PSNR) as parameter and only passes verification if the PSNR of the output values is above the specified lower bound.
 
@@ -346,14 +360,14 @@ The prototype of a GPU decoder is:
 
     static __device__ inline void d_iNAME_4(int& csize, byte in[CS], byte out[CS], byte temp[CS]);
 
-The encoder and decoder functions must losslessly transform the first csize bytes of the *in* array and write the result to the *out* array. They must update *csize* if the transformed data has a different size than the input. The code must run in a single thread block and cannot use global variables so as not to interfere with LC's performance optimizations and automatic parallelization across thread blocks. Furthermore, the code must not allocate any "\_\_shared\_\_" memory. Instead, it should use the *temp* for obtaining shared memory (e.g., int\* buf = (int\*)&temp;). Note that both functions are allowed to change the contents of the *in*, the *out*, and the *temp* arrays. The three arrays are guaranteed to start at an 8-byte aligned address.
+The encoder and decoder functions must losslessly transform the first csize bytes of the *in* array and write the result to the *out* array. They must update *csize* if the transformed data has a different size than the input. The code must run in a single thread block and cannot use global variables so as not to interfere with LC's performance optimizations and automatic parallelization across thread blocks. Furthermore, the code must not allocate any "\_\_shared\_\_" memory. Instead, it should use the *temp* array for obtaining shared memory (e.g., int\* buf = (int\*)&temp;). Note that both functions are allowed to change the contents of the *in*, the *out*, and the *temp* arrays. The three arrays are guaranteed to start at an 8-byte aligned address.
 
 Templates for implementing a new GPU component are available in the *components/component_template* subdirectory.
 
 
 ### Example of a CPU Component
 
-The following code provides a simple example of a CPU component called **INC_1** that adds 1 to each byte ("_1"). It can be invoked, for example, using the *./lc input EX "" "INC_1 .+"* command line.
+The following code provides a simple example of a CPU component called **INC_1** that adds 1 to each byte ("_1"). It can be invoked, for instance, using the *./lc input EX "" "INC_1 .+"* command line.
 
     static inline bool h_INC_1(int& csize, const byte in [CS], byte out [CS])
     {
@@ -373,7 +387,7 @@ The following code provides a simple example of a CPU component called **INC_1**
 
 ### Example of a GPU Component
 
-The following code provides a simple example of a GPU component called **INC_1** that adds 1 to each byte ("_1"). /TPB/ stands for "threads per block" and is a predefined variable in LC. The component can be invoked, for example, using the *./lc input EX "" "INC_1 .+"* command line.
+The following code provides a simple example of a GPU component called **INC_1** that adds 1 to each byte ("_1"). /TPB/ stands for "threads per block" and is a predefined variable in LC. The component can be invoked, for instance, using the *./lc input EX "" "INC_1 .+"* command line.
 
     static __device__ inline bool d_INC_1(int& csize, byte in [CS], byte out [CS], byte temp [CS])
     {
@@ -405,13 +419,13 @@ To add a CPU preprocessor, place a new header file in the *preprocessors* subdir
 
 The prototype of a CPU preprocessor encoder is:
 
-    static inline void h_PRE_f32(int& size, byte\*& data, const int paramc, const double paramv[]);
+    static inline void h_PRE_f32(long long& size, byte*& data, const int paramc, const double paramv[]);
 
 The prototype of a CPU preprocessor decoder is:
 
-    static inline void h_iPRE_f32(int& size, byte\*& data, const int paramc, const double paramv[]);
+    static inline void h_iPRE_f32(long long& size, byte*& data, const int paramc, const double paramv[]);
 
-The encoder and decoder functions transform *size* bytes in the *data* array and write the result either back to the *data* array or to a new array and then make *data* point to this new array (and deallocate the old *data* array). If the number of bytes changes, the *size* must be updated accordingly. The *data* array must start at an 8-byte aligned address. The *paramc* argument specifies the number of elements in the *paramv* array. The *paramv* array passes the command-line arguments provided to this preprocessor (e.g., the error bound, data set dimensionality, etc.). The two functions must be manually parallelized using OpenMP if desired.
+The encoder and decoder functions transform *size* bytes in the *data* array and write the result either back to the *data* array or to a new array and then make *data* point to this new array (and deallocate the old *data* array). If the number of bytes changes, *size* must be updated accordingly. The *data* array must start at an 8-byte aligned address. The *paramc* argument specifies the number of elements in the *paramv* array. The *paramv* array passes the command-line arguments provided to this preprocessor (e.g., the error bound, threshold, etc.). The two functions must be manually parallelized using OpenMP if desired.
 
 Templates for implementing a new CPU preprocessor are available in the *preprocessors/preprocessor_template* subdirectory.
 
@@ -422,13 +436,13 @@ To add a GPU preprocessor, place a new header file in the *preprocessors* subdir
 
 The prototype of a GPU preprocessor encoder is:
 
-    static inline void d_PRE_f32(int& size, byte\*& data, const int paramc, const double paramv[]);
+    static inline void d_PRE_f32(long long& size, byte*& data, const int paramc, const double paramv[]);
 
 The prototype of a GPU preprocessor decoder is:
 
-    static inline void d_iPRE_f32(int& size, byte\*& data, const int paramc, const double paramv[]);
+    static inline void d_iPRE_f32(long long& size, byte*& data, const int paramc, const double paramv[]);
 
-The encoder and decoder functions transform *size* bytes in the *data* array and write the result either back to the *data* array or to a new array and then make *data* point to this new array (and deallocate the old *data* array). If the number of bytes changes, the *size* must be updated accordingly. The *data* array must start at an 8-byte aligned address. The *paramc* argument specifies the number of elements in the *paramv* array. The *paramv* array passes the command-line arguments provided to this preprocessor (e.g., the error bound, data set dimensionality, etc.). The two functions run on the host and must invoke appropriate kernels to perform the preprocessing. The kernels are allowed to allocate and use shared memory. Note that the *data* array is allocated on the GPU and cannot be directly accessed from the host code.
+The encoder and decoder functions transform *size* bytes in the *data* array and write the result either back to the *data* array or to a new array and then make *data* point to this new array (and deallocate the old *data* array). If the number of bytes changes, *size* must be updated accordingly. The *data* array must start at an 8-byte aligned address. The *paramc* argument specifies the number of elements in the *paramv* array. The *paramv* array passes the command-line arguments provided to this preprocessor (e.g., the error bound, data set dimensionality, etc.). The two functions run on the host and must invoke appropriate kernels to perform the preprocessing. The kernels are allowed to allocate and use shared memory. Note that the *data* array is allocated on the GPU and cannot be directly accessed from the host code.
 
 Templates for implementing a new GPU preprocessor are available in the *preprocessors/preprocessor_template* subdirectory.
 
@@ -437,7 +451,7 @@ Templates for implementing a new GPU preprocessor are available in the *preproce
 
 The following code provides an example of a CPU preprocessor called **ADD_i32** that adds a user-provided constant to each 32-bit integer ("_i32"). It can be invoked, for example, using the *./lc input EX "ADD_i32(7)" ".+"* command line.
 
-    static inline void h_ADD_i32(int& size, byte*& data, const int paramc, const double paramv [])
+    static inline void h_ADD_i32(long long& size, byte*& data, const int paramc, const double paramv [])
     {
       assert(paramc == 1);
       assert(size % sizeof(int) == 0);
@@ -451,7 +465,7 @@ The following code provides an example of a CPU preprocessor called **ADD_i32** 
       }
     }
 
-    static inline void h_iADD_i32(int& size, byte*& data, const int paramc, const double paramv [])
+    static inline void h_iADD_i32(long long& size, byte*& data, const int paramc, const double paramv [])
     {
       assert(paramc == 1);
       assert(size % sizeof(int) == 0);
@@ -471,11 +485,18 @@ The following code provides an example of a CPU preprocessor called **ADD_i32** 
 
 ## Notes
 
-The March 2025 release of LC is not compatible with the files produced by earlier releases because the new release supports file sizes above 2 GB.
+The March 2025 and later releases of LC are not compatible with the files produced by earlier releases because the new releases support file sizes above 2 GB.
 
 LC currently only works on little-endian systems.
 
 For testing, you can generate the LC framework using the *generate_Hybrid_LC-Framework.py* script. This will include all components and preprocessors for which both CPU and GPU versions exist, i.e., whose names match except for the leading "h_" and "d_". Running the resulting code will redundantly perform the compression and decompression on both devices and, importantly, compare the results bit for bit. This is useful to ensure that the CPU and GPU implementations of all components and preprocessors produce the exact same compressed and decompressed data.
+
+
+## Third-Party LC Codes
+
+Rust bindings for LC: https://github.com/juntyr/lc-framework-rs
+
+Numcodecs LC implementation: https://github.com/juntyr/numcodecs-rs/tree/main/codecs/lc
 
 
 ---

@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
+Copyright (c) 2021-2026, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -53,6 +53,10 @@ static const int TPB = 512;  // threads per block [must be power of 2 and at lea
 #include <cassert>
 #include <stdexcept>
 #include <cuda.h>
+#if !defined(__HIPCC__)
+#include <cuda/std/limits>
+#include <cuda/atomic>  // a CUDA-only library that cannot be automatically replaced by HIPIFY
+#endif
 #include "include/macros.h"
 #include "include/sum_reduction.h"
 #include "include/max_scan.h"
@@ -228,7 +232,7 @@ int main(int argc, char* argv [])
 {
   /*##print-beg##*/
   /*##print-end##*/
-  printf("Copyright 2024 Texas State University\n\n");
+  printf("Copyright 2021-2026 Texas State University\n\n");
 
   // read input from file
   if (argc < 3) {printf("USAGE: %s compressed_file_name decompressed_file_name [performance_analysis (y)]\n\n", argv[0]); return -1;}

@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
+Copyright (c) 2021-2026, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 
 int main(int argc, char* argv [])
 {
-  printf("LC Compression Framework v1.2 (%s)\n", __FILE__);
+  printf("LC Compression Framework v1.3 (%s)\n", __FILE__);
 
 #ifndef USE_GPU
   #ifndef USE_CPU
@@ -65,7 +65,7 @@ int main(int argc, char* argv [])
   #endif
 #endif
 
-  printf("Copyright 2024 Texas State University\n\n");
+  printf("Copyright 2021-2026 Texas State University\n\n");
 
   // perform system checks
   if (CS % 8 != 0) {fprintf(stderr, "ERROR: CS must be a multiple of 8\n\n"); throw std::runtime_error("LC error");}
@@ -326,9 +326,9 @@ int main(int argc, char* argv [])
     cudaMemcpy(dpredecdata, d_predecdata, dpredecsize, cudaMemcpyDeviceToHost);
     verify(std::min(insize, dpredecsize), dpredecdata, input, verifs);
     if (!bug && (algorithms == 1)) {
-      //FILE* const f = fopen("LC.decoded", "wb");  assert(f != NULL);
-      //const int num = fwrite(dpredecdata, sizeof(byte), dpredecsize, f);  assert(num == dpredecsize);
-      //fclose(f);
+      FILE* const f = fopen("LC.decoded", "wb");  assert(f != NULL);
+      const int num = fwrite(dpredecdata, sizeof(byte), dpredecsize, f);  assert(num == dpredecsize);
+      fclose(f);
     }
     delete [] dpredecdata;
 #endif
@@ -338,9 +338,9 @@ int main(int argc, char* argv [])
     verify(std::min(insize, hpredecsize), hpredecdata, input, verifs);
 #ifndef USE_GPU
     if (!bug && (algorithms == 1)) {
-      //FILE* const f = fopen("LC.decoded", "wb");  assert(f != NULL);
-      //const int num = fwrite(hpredecdata, sizeof(byte), hpredecsize, f);  assert(num == hpredecsize);
-      //fclose(f);
+      FILE* const f = fopen("LC.decoded", "wb");  assert(f != NULL);
+      const int num = fwrite(hpredecdata, sizeof(byte), hpredecsize, f);  assert(num == hpredecsize);
+      fclose(f);
     }
 #endif
 #endif
@@ -390,7 +390,7 @@ int main(int argc, char* argv [])
     if (sep != std::string::npos) fname = fname.substr(sep + 1, fname.size() - sep - 1);
     fname += ext + ".csv";
     fres = fopen(fname.c_str(), "wt"); assert(fres != NULL);
-    fprintf(fres, "LC Lossless Compression Framework v1.2\n");
+    fprintf(fres, "LC Lossless Compression Framework v1.3\n");
     fprintf(fres, "input, %s\n", argv[1]);
     fprintf(fres, "size [bytes], %lld\n", insize);
     time_t curtime;
@@ -773,18 +773,18 @@ int main(int argc, char* argv [])
       if (conf.verify) {
 #ifdef USE_CPU
         if (!bug && (algorithms == 1)) {
-          //FILE* const f = fopen("LC.encoded", "wb");  assert(f != NULL);
-          //const int num = fwrite(hencoded, sizeof(byte), hencsize, f);  assert(num == hencsize);
-          //fclose(f);
+          FILE* const f = fopen("LC.encoded", "wb");  assert(f != NULL);
+          const int num = fwrite(hencoded, sizeof(byte), hencsize, f);  assert(num == hencsize);
+          fclose(f);
         }
 #else
         if (!bug && (algorithms == 1)) {
-          //byte* const dencoded = new byte [dencsize];
-          //cudaMemcpy(dencoded, d_encoded, dencsize, cudaMemcpyDeviceToHost);
-          //FILE* const f = fopen("LC.encoded", "wb");  assert(f != NULL);
-          //const int num = fwrite(dencoded, sizeof(byte), dencsize, f);  assert(num == dencsize);
-          //fclose(f);
-          //delete [] dencoded;
+          byte* const dencoded = new byte [dencsize];
+          cudaMemcpy(dencoded, d_encoded, dencsize, cudaMemcpyDeviceToHost);
+          FILE* const f = fopen("LC.encoded", "wb");  assert(f != NULL);
+          const int num = fwrite(dencoded, sizeof(byte), dencsize, f);  assert(num == dencsize);
+          fclose(f);
+          delete [] dencoded;
         }
 #endif
 

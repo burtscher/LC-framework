@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2025, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
+Copyright (c) 2021-2026, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, Anju Mongandampulath Akathoott, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -53,6 +53,10 @@ static const int TPB = 512;  // threads per block [must be power of 2 and at lea
 #include <cassert>
 #include <stdexcept>
 #include <cuda.h>
+#if !defined(__HIPCC__)
+#include <cuda/std/limits>
+#include <cuda/atomic>  // a CUDA-only library that cannot be automatically replaced by HIPIFY
+#endif
 #include "include/macros.h"
 #include "include/sum_reduction.h"
 #include "include/max_scan.h"
@@ -114,10 +118,43 @@ static __global__ void d_reset()
 }
 
 
-static inline __device__ void propagate_carry(const int value, const long long chunkID, volatile long long* const __restrict__ fullcarry, long long* const __restrict__ s_fullc)
+#if defined(__CUDA_ARCH__)
+
+template <typename T>
+__device__ inline T atomicRead(T* const addr)
+{
+  return ((cuda::atomic<T>*)addr)->load(cuda::memory_order_relaxed);
+}
+
+
+template <typename T>
+__device__ inline void atomicWrite(T* const addr, const T val)
+{
+  ((cuda::atomic<T>*)addr)->store(val, cuda::memory_order_relaxed);
+}
+
+#else
+
+template <typename T>
+__device__ inline T atomicRead(T* const addr)
+{
+  return *((volatile T*)addr);  // AMD hack
+}
+
+
+template <typename T>
+__device__ inline void atomicWrite(T* const addr, const T val)
+{
+  *((volatile T*)addr) = val;  // AMD hack
+}
+
+#endif /* defined(__CUDA_ARCH__) */
+
+
+static inline __device__ void propagate_carry(const int value, const long long chunkID, long long* const __restrict__ fullcarry, long long* const __restrict__ s_fullc)
 {
   if (threadIdx.x == TPB - 1) {  // last thread
-    fullcarry[chunkID] = (chunkID == 0) ? (long long)value : (long long)-value;
+    atomicWrite(&fullcarry[chunkID], (chunkID == 0) ? (long long)value : (long long)-value);
   }
 
   if (chunkID != 0) {
@@ -128,7 +165,7 @@ static inline __device__ void propagate_carry(const int value, const long long c
       __syncwarp();  // not optional
       do {
         if (cidm1ml >= 0) {
-          val = fullcarry[cidm1ml];
+          val = atomicRead(&fullcarry[cidm1ml]);
         }
       } while ((__any(val == 0)) || (__all(val <= 0)));
 #if defined(WS) && (WS == 64)
@@ -149,7 +186,7 @@ static inline __device__ void propagate_carry(const int value, const long long c
 #endif
       if (lane == pos) {
         const long long fullc = partc + val;
-        fullcarry[chunkID] = fullc + value;
+        atomicWrite(&fullcarry[chunkID], fullc + value);
         *s_fullc = fullc;
       }
     }
@@ -270,7 +307,7 @@ int main(int argc, char* argv [])
 {
   /*##print-beg##*/
   /*##print-end##*/
-  printf("Copyright 2024 Texas State University\n\n");
+  printf("Copyright 2021-2026 Texas State University\n\n");
 
   // read input from file
   if (argc < 3) {printf("USAGE: %s input_file_name compressed_file_name [performance_analysis (y)]\n\n", argv[0]); return -1;}
