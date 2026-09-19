@@ -1,0 +1,516 @@
+# LC Framework
+
+LC is a framework for automatically generating customized lossless and guaranteed-error-bounded lossy data-compression algorithms for individual files or groups of files. The resulting compressors and decompressors are parallelized and produce bit-for-bit the same result on CPUs and GPUs.
+
+A step-by-step tutorial is available below. If any part of this tutorial does not work for you or you have other question about LC, please do not hesitate to contact us at <burtscher@txstate.edu> so we can help.
+
+
+## Overview
+
+LC consists of the following three parts:
+ - Component library
+ - Preprocessor library
+ - Framework
+
+Both libraries contain data transformations (encoders) and their inverses (decoders) for CPU and GPU execution. The user can extend these libraries as explained in the tutorial. The framework takes preprocessors and components from these libraries and chains them into a pipeline to build a compression algorithm. It similarly chains the corresponding decoders in the opposite order to build the matching decompression algorithm. Figure 1 illustrates this process. Importantly, LC can automatically search for effective compression algorithms by testing all combinations of user-selected sets of components in each pipeline stage.
+
+![LC overview](LC.svg "LC overview")
+
+Figure 1: LC's process of chaining (a.k.a. pipelining) *n* data transformations to form a custom compression algorithm and the inverses of those transformations to form the matching decompression algorithm (the components are lossless whereas the preprocessors include guaranteed-error-bounded lossy quantizers).
+
+
+### General Features
+
+LC supports both exhaustive search for the best algorithm in the search space as well as a genetic-algorithm-based search for cases where the exhaustive search would take too long. In addition, the user can optionally supply a regular expression to reduce the size of the search space. LC is able to search for the best algorithm based solely on compression ratio or based on both compression ratio and throughput. In the latter case, it outputs the Pareto front, that is, a set of algorithms that represent different compression-ratio versus speed tradeoffs.
+
+LC can run on and generate algorithms for CPUs and GPUs. The algorithms are deterministic and fully compatible, meaning the user may compress a file on either the CPU or GPU and decompress the resulting file on either the CPU or GPU. The CPU code is written in C++ and parallelized using OpenMP. The GPU code is written in CUDA. A HIP version is also included. Once a suitable algorithm has been found, the user can employ LC's code generator to produce a standalone compressor and decompressor for that algorithm that does not require the framework.
+
+LC includes an extensive library of components and preprocessors. Most of them support 1-, 2-, 4-, and 8-byte word sizes. Both libraries are user customizable and extensible, meaning users are able to add their own data transformations by following the API outlined in the tutorial. LC then includes the new transformations in its search for a good compression algorithm and can use them in the code generator.
+
+
+### Lossy-Mode Features
+
+In addition to lossless algorithms, LC can also generate lossy algorithms for 32-bit single and 64-bit double-precision floating-point data. It supports absolute, relative, normalized absolute, and combined absolute & relative error bounds. Moreover, it guarantees that these point-wise error bounds are not violated by losslessly encoding any value that it cannot quantize within the provided error bound. It supports all floating-point values, including infinities, not-a-number (NaN), and denormals. Some of the quantizers provide two modes, one that replaces the lost bits by zeros and another that replaces them by random bits to minimize autocorrelation between the errors.
+
+
+---
+
+## Quick-Start Guide and Tutorial
+
+### Installation
+
+To download LC, run the following Linux commands:
+
+    git clone https://github.com/burtscher/LC-framework.git
+    cd LC-framework/
+
+If you want to run LC on the CPU, generate the framework as follows:
+
+    ./generate_Host_LC-Framework.py
+
+If, instead, you want to run LC on the GPU, generate the framework as follows:
+
+    ./generate_Device_LC-Framework.py
+
+In either case, run the printed command to compile the generated code. For the CPU, use:
+
+    g++ -O3 -march=native -fopenmp -mno-fma -ffp-contract=off -DUSE_CPU -I. -std=c++17 -o lc lc.cpp
+
+For the GPU, use:
+
+    nvcc -O3 -arch=sm_70 -fmad=false -DUSE_GPU -Xcompiler "-O3 -march=native -fopenmp -mno-fma -ffp-contract=off" -I. -o lc lc.cu
+
+You may have to adjust these commands and flags to your system and compiler. For instance, the *sm_70* should be changed to match your GPU's compute capability.
+
+The generate_Hybrid_LC-Framework.py script is only for testing and should not be used as it generates slow code.
+
+
+### Usage Examples for Lossless Compression Algorithms
+
+The following examples assume you have a file called *input.dat* in the current directory and want to find a good compression algorithm for it. See below for a description of the available preprocessors and components.
+
+Assume you believe that using bit shuffling (BIT) and run-length encoding (RLE) at 4-byte granularity make a good compressor. Then you can see how well it compresses by entering the following command (note the two pairs of quotes):
+
+    ./lc input.dat CR "" "BIT_4 RLE_4"
+
+This will produce output that lists the compression ratio at the end. If you want to see whether running the RLE component at 1-byte granularity performs better, try:
+
+    ./lc input.dat CR "" "BIT_4 RLE_1"
+
+To find out which components (and preprocessors) are available, simply run:
+
+    ./lc
+
+If you want to see more stats on the input and output data as well as throughput information in addition to the compression ratio, switch the mode from *CR* to *AL*:
+
+    ./lc input.dat AL "" "BIT_4 RLE_1"
+
+Note that using *AL* also turns on verification to make sure the decompressed data is bit-for-bit equivalent to the original data.
+
+One of the key strengths of LC is its ability to automatically search for a good compression algorithm. For example, if you want LC to try all available components in the second stage, type:
+
+    ./lc input.dat CR "" "BIT_4 .+"
+
+The ".+" is a regular expression that matches the names of all components in the library. You can use it to select any subset of the available components. Of course, you can also use a regular expression for the first pipeline stage by entering:
+
+    ./lc input.dat CR "" ".+ .+"
+
+This is not limited to two stages. To search for the best 3-stage pipeline, use:
+
+    ./lc input.dat CR "" ".+ .+ .+"
+
+Note that the search time increases exponentially with the number of stages. Before you perform a search, you can check the size of the search space using the *PR* mode as follows:
+
+    ./lc input.dat PR "" ".+ .+ .+ .+"
+
+The output lists the number of algorithms that will be tested as well as which components will be considered in each pipeline stage. If this number is too large, i.e., the search would take too long, try reducing the search space by limiting the number of components to be considered:
+
+    ./lc input.dat CR "" "DIFF_4 .+ .+ R.+|C.+|H.+"
+
+If available, we recommend using the GPU version of LC as it tends to be much faster than the CPU version, particularly for large inputs. To further speed up the search, LC includes a genetic algorithm (GA) to quickly search for a good but not necessarily the best algorithm. If you want to run the GA to find a good pipeline with 5 stages, enter the following command:
+
+    ./scripts/ga_search.py -s 5 input.dat
+
+If you are interested in the throughput in addition to the compression ratio, use the *EX* mode of LC like this:
+
+    ./lc input.dat EX "" ".+ .+"
+
+The output includes the Pareto front (<https://en.wikipedia.org/wiki/Pareto_front>) at the end, allowing the user to pick the best algorithm for a given compression or decompression throughput. The six columns list the algorithm, the compression ratio, the CPU compression throughput, the CPU decompression throughput, the GPU compression throughput, and the GPU decompression throughput. The throughputs are given in gigabytes per second.
+
+All *CR* and *EX* runs with more than one algorithm also write their results to a CSV file that can be opened with most spreadsheet applications to view and postprocess the results.
+
+*EX*- and *AL*-runs with one algorithm write the compressed data to a file called *LC.encoded* and the decompressed data to a file called *LC.decoded*.
+
+In summary, LC supports the following modes:
+
+ **AL**: This mode provides the most detailed output but only works for a single pipeline.
+
+ **PR**: This mode prints the search space and then quits.
+
+ **CR**: This mode searches for the best compressing algorithm.
+
+ **EX**: This mode searches for the algorithms on the Pareto front, taking into account both the compression ratio and the compression/decompression throughput.
+
+ **TS**: This mode is for testing only and should not be used.
+
+
+### Usage Examples for Lossy Floating-Point Compression Algorithms
+
+To generate lossy algorithms with LC, preprocessors are needed. They must be fully specified (no regular expressions are allowed) and cannot be searched for automatically as they require user-specified parameters such as the error bound.
+
+To find a good lossy compression algorithm for IEEE-754 32-bit single-precision floating-point data that are quantized with a maximum point-wise absolute error bound of 0.01 and then losslessly compressed with three components, enter:
+
+    ./lc input.dat CR "QUANT_ABS_0_f32(0.01)" ".+ .+ R.+|C.+|H.+"
+
+To do the same with a point-wise relative error bound, use:
+
+    ./lc input.dat CR "QUANT_REL_0_f32(0.01)" ".+ .+ R.+|C.+|H.+"
+
+The preprocessors work with the *CR*, *EX*, and *AL* modes. However, since both *EX* and *AL* verify the result, the default lossless verification will likely fail for lossy compression. LC includes a set of verifiers that can be selected in lieu of the default verifier. For an point-wise absolute error bound of 0.001, use:
+
+    ./lc input.dat EX "QUANT_ABS_0_f32(0.001)" ".+ R.+|C.+|H.+" "MAXABS_f32(0.001)"
+
+See the ./verifiers/ directory for additional available verifiers or the description below.
+
+These quantizers replace any lost bits with zeros. If you prefer those bits be replaced by random data to minimize error autocorrelation, use:
+
+    ./lc input.dat CR "QUANT_ABS_R_f32(0.01)" ".+ .+ R.+|C.+|H.+"
+
+or
+
+    ./lc input.dat CR "QUANT_REL_R_f32(0.01)" ".+ .+ R.+|C.+|H.+"
+
+
+
+### Standalone Compressor and Decompressor Generation
+
+Once you have determined a good lossless or lossy compression algorithm (e.g., "TUPL4_1 RRE_1 CLOG_1"), you can generate a standalone compressor and a standalone decompressor that are optimized for this algorithm.
+
+To generate the CPU version, run:
+
+    ./generate_standalone_CPU_compressor_decompressor.py "" "TUPL4_1 RRE_1 CLOG_1"
+
+To generate the GPU version, run:
+
+    ./generate_standalone_GPU_compressor_decompressor.py "" "TUPL4_1 RRE_1 CLOG_1"
+
+In either case, run the printed commands to compile the generated code. For the CPU, use:
+
+    g++ -O3 -march=native -fopenmp -mno-fma -ffp-contract=off -I. -std=c++17 -o compress compressor-standalone.cpp
+    g++ -O3 -march=native -fopenmp -mno-fma -ffp-contract=off -I. -std=c++17 -o decompress decompressor-standalone.cpp
+
+For the GPU, use:
+
+    nvcc -O3 -arch=sm_70 -fmad=false -Xcompiler "-O3 -march=native -fopenmp -mno-fma -ffp-contract=off" -I. -o compress compressor-standalone.cu
+    nvcc -O3 -arch=sm_70 -fmad=false -Xcompiler "-O3 -march=native -fopenmp -mno-fma -ffp-contract=off" -I. -o decompress decompressor-standalone.cu
+
+You may have to adjust these commands and flags to your system and compiler. For instance, the *sm_70* should be changed to match your GPU's compute capability.
+
+At this point, you can compress files with:
+
+    ./compress input_file_name compressed_file_name [y]
+
+and decompress them with:
+
+    ./decompress compressed_file_name decompressed_file_name [y]
+
+Both commands accept an optional "y" parameter at the end. If it is specified, the compressor and decompressor will measure and print the throughput.
+
+
+---
+
+
+## Available Components, Preprocessors, and Verifiers
+
+All LC compression pipelines start with zero or more *preprocessors* and end with one or more *components*. The preprocessors require parentheses after their names and may take parameters. The components do not take any parameters and cannot have parentheses.
+
+
+## Available Components
+
+The LC framework breaks the input data up into chunks of 16 kB, each of which is compressed independently and in parallel using the selected components. All components are lossless. Most components support different word sizes. The number at the end of their names indicates the word size in bytes. For example, "_4" means the word size is 4 bytes (e.g., ints or floats). To structure the description of the components, we group them into the following four categories: mutators, shufflers, predictors, and reducers. The goal of the first three types is to better expose patterns so that the reducer components can compress the data more effectively. Only reducer components make sense in the last pipeline stage.
+
+
+### Mutators
+
+Mutators computationally transform each value. This is done independently of other values and does not compress the data.
+
+**NUL**: This component performs the identity transformation, meaning it outputs the input verbatim. It is useful in that it allows longer pipelines to also cover algorithms with fewer stages.
+
+**TCMS**: This component converts each value from two's-complement to magnitude-sign representation, which is often easier to compress because it tends to yield more leading zero bits.
+
+**TCNB**: This component converts each value from two's-complement to negabinary representation, which is often easier to compress because it tends to yield more leading zero bits.
+
+
+### Shufflers
+
+Shufflers rearrange the order of the values but perform no computation on them. Some shufflers reorder the bits or bytes within a word. None of them compress the data.
+
+**BIT**: This component is often referred to as "bit shuffle" or "bit transpose". It takes the most significant bit of each value in the input and outputs them together, then it takes the second most significant bit of each value and outputs them, and so on down to the least significant bit. This improves compressibility if the values tend to have the same bit values in certain positions.
+
+**TUPLk**: This component assumes the data to be a sequence of k-tuples, which it rearranges by listing all first tuple values, then all second tuple values, and so on. For example, a tuple size of k = 3 changes the linear sequence x1, y1, z1, x2, y2, z2, x3, y3, z3, x4, y4, z4 into x1, x2, x3, x4, y1, y2, y3, y4, z1, z2, z3, z4. This is beneficial as values belonging to the same position within a tuple often correlate more with each other than with other values from the same tuple.
+
+
+### Predictors
+
+Predictors guess the next value by extrapolating it from prior values and then subtracting the prediction from the actual value, which yields a residual sequence. If the predictions are accurate, the residuals cluster around zero, making them easier to compress than the original data. Predictors per se do not compress the data.
+
+**DIFF**: This component computes the difference sequence (also called "delta modulation" or "decorrelation") by subtracting the previous value from the current value and outputting the resulting difference. If neighboring values correlate with each other, this tends to produce a more compressible sequence.
+
+**DIFFMS**: This component computes the difference sequence like DIFF does but outputs the result in magnitude-sign format, which is often more compressible because it tends to produce values with many leading zero bits.
+
+**DIFFNB**: This component computes the difference sequence like DIFF does but outputs the result in negabinary format, which is often more compressible because it tends to produce values with many leading zero bits.
+
+
+### Reducers
+
+Reducers are the only components that can compress the data. They exploit various types of redundancies to do so.
+
+**CLOG**: This component breaks the data up into 32 subchunks, determines the smallest number of leading zero bits of all values in a subchunk, records this count, and then stores only the remaining bits of each value. This compresses data with leading zero bits.
+
+**HCLOG**: This component works like CLOG except it first applies the TCMS transformation to all values in a subchunk that yield no leading zero bits when using CLOG and records whether this was done using one bit per subchunk.
+
+**RLE**: This component performs run-length encoding. It counts how many times a value appears in a row. Then it counts how many non-repeating values follow. Both counts are emitted and followed by a single instance of the repeating value as well as all non-repeating values.
+
+**RRE**: This component creates a bitmap in which each bit specifies whether the corresponding word in the input is a repetition of the prior word or not. It outputs the non-repeating words and a compressed version of the bitmap that is repeatedly compressed with the same algorithm.
+
+**RZE**: This component creates a bitmap in which each bit specifies whether the corresponding word in the input is zero or not. It outputs the non-zero words and a compressed version of the bitmap like RRE does.
+
+**RARE**: This component applies RRE to the top k bits of each word and keeps the remaining bottom bits verbatim. For each chunk, it separately computes the k value that results in the highest compression ratio and stores it in the output.
+
+**RAZE**: This component applies RZE to the top k bits of each word and keeps the remaining bottom bits verbatim. For each chunk, it separately computes the k value that results in the highest compression ratio and stores it in the output.
+
+
+## Available Preprocessors
+
+Preprocessors operate on the entire data (i.e., there is no chunking) and can be lossy or lossless. Some preprocessors support different data types. The end of their names indicates the data type for which they are designed. For example, "_f32" means the preprocessor targets 32-bit floating-point values. To structure the description of the preprocessors, we group them into lossy and lossless preprocessors.
+
+### Lossless
+
+These quantizers recreate the original data exactly. They support all possible IEEE 754 floating-point values, including INFs, NaNs, and denormals.
+
+**NUL**: This preprocessor performs the identity transformation, meaning it outputs the input verbatim. It takes no parameters.
+
+**LOR1D**: This preprocessor performs a 1-dimensional Lorenzo transformation, i.e., it computes a difference sequence. It takes no parameters.
+
+
+### Lossy Quantizers
+
+All lossy quantizers require a parameter that specifies the maximally allowed point-wise error bound EB. Some allow an optional second parameter specifying a threshold. Any value whose magnitude is at or above the threshold is retained losslessly and not quantized. These quantizers support all possible IEEE 754 floating-point values, including INFs, NaNs, and denormals.
+
+**QUANT_ABS_0**: These preprocessors quantize 32- and 64-bit floating-point values based on the provided point-wise absolute error bound. All values that end up in the same quantization bin are decompressed to the same value. These preprocessors guarantee that the original value V is decoded to a value V' such that V - EB <= V' <= V + EB.
+
+**QUANT_ABS_R**: These preprocessors quantize 32- and 64-bit floating-point values based on the provided point-wise absolute error bound. Each value from the same quantization bin is decompressed to a random value within the provided error bound to minimize error autocorrelation. These preprocessors guarantee that the original value V is decoded to a value V' such that V - EB <= V' <= V + EB.
+
+**QUANT_NOA_0**: These preprocessors quantize 32- and 64-bit floating-point values just like their QUANT_ABS_0 counterparts except the provided error bound is first multiplied by the range of values occurring in the input, where the range R is the maximum value minus the minimum value. These preprocessors guarantee that the original value V is decoded to a value V' such that V - EB \* R <= V' <= V + EB \* R.
+
+**QUANT_NOA_R**: These preprocessors quantize 32- and 64-bit floating-point values just like their QUANT_ABS_R counterparts except the provided error bound is first multiplied by the range of values occurring in the input, where the range R is the maximum value minus the minimum value. These preprocessors guarantee that the original value V is decoded to a value V' such that V - EB*R <= V' <= V + EB*R.
+
+**QUANT_REL_0**: These preprocessors quantize 32- and 64-bit floating-point values based on the provided point-wise relative error bound. All values that end up in the same quantization bin are decompressed to the same value. These preprocessors guarantee that the original value V is decoded to a value V' with the same sign such that |V| / (1 + EB) <= |V'| <= |V| \* (1 + EB).
+
+**QUANT_REL_R**: These preprocessors quantize 32- and 64-bit floating-point values based on the provided point-wise relative error bound. Each value from the same quantization bin is decompressed to a random value within the provided error bound to minimize error autocorrelation. These preprocessors guarantee that the original value V is decoded to a value V' with the same sign such that |V| / (1 + EB) <= |V'| <= |V| \* (1 + EB).
+
+**QUANT_ABS_REL_0**: These preprocessors combine QUANT_ABS_0 and QUANT_REL_0 and quantize 32- and 64-bit floating-point values based on the tighter of the two provided point-wise error bounds.
+
+**QUANT_ABS_REL_R**: These preprocessors combine QUANT_ABS_R and QUANT_REL_R and quantize 32- and 64-bit floating-point values based on the tighter of the two provided point-wise error bounds.
+
+**QUANT_IABS_0**: These preprocessors are similar to QUANT_ABS_0 but are implemented using integer operations only and losslessly quantize any value whose magnitude is at or above a certain internal threshold, including INFs and NaNs.
+
+**QUANT_INOA_0**: These preprocessors are similar to QUANT_NOA_0 but are implemented using integer operations only and losslessly quantize any value whose magnitude is at or above a certain internal threshold, including INFs and NaNs.
+
+
+## Available Verifiers
+
+Some verifiers support different data types. The end of their names indicates the data type for which they are designed.
+
+**LOSSLESS**: This verifier is the default. It passes verification if the decompressed output matches every bit of the original input.
+
+**PASS**: This verifier always passes verification and is only useful for debugging.
+
+**MAXABS**: This verifier takes a point-wise absolute error bound as parameter and only passes verification if every output value is within the specified error bound.
+
+**MAXNOA**: This verifier works like MAXABS except the provided error bound is first multiplied by the range of values occurring in the input, where the range is the maximum value minus the minimum value.
+
+**MAXREL**: This verifier takes a point-wise relative error bound as parameter and only passes verification if every output value is within the specified error bound.
+
+**MAXABSREL**: This verifier combines MAXABS and MAXREL and only passes verification if every output value is within the two specified error bounds.
+
+**MSE**: This verifier takes a mean squared error (MSE) as parameter and only passes verification if the mean squared error of the output values is within the error bound.
+
+**PSNR**: This verifier takes a peak-signal-to-noise ratio (PSNR) as parameter and only passes verification if the PSNR of the output values is above the specified lower bound.
+
+
+---
+
+
+## Adding and Removing Components
+
+LC users can add and delete components. To remove a component from the library, simple delete the corresponding header files from the *components* subdirectory.
+
+
+### Adding Your Own CPU Component
+
+To add a CPU component, place a new header file in the *components* subdirectory whose file name must start with "h_" (for "host"). The header file must include the encoder and decoder functions and may include helper functions (with globally unique names). The name of the encoder function must be identical to the header file name without the extension. The name of the decoder function must be the same except it needs to include an "i" (for "inverse") after the first underscore. For example, the **NAME_4** component's header file for CPU execution must be named **h_NAME_4.h** and must contain an encoder function called **h_NAME_4** and a decoder function called **h_iNAME_4**.
+
+The prototype of a CPU encoder is:
+
+    static inline bool h_NAME_4(int& csize, byte in[CS], byte out[CS]);
+
+This function returns false if the encoded data does not fit in the out array and true otherwise.
+
+The prototype of a CPU decoder is:
+
+    static inline void h_iNAME_4(int& csize, byte in[CS], byte out[CS]);
+
+The encoder and decoder functions must losslessly transform the first csize bytes of the *in* array and write the result to the *out* array. They must update *csize* if the transformed data has a different size than the input. The code must be serial (e.g., it cannot use OpenMP) and cannot use global variables (or static local variables) so as not to interfere with LC's performance optimizations and automatic parallelization. Note that both functions are allowed to change the contents of the *in* and the *out* arrays. The two arrays are guaranteed to start at an 8-byte aligned address.
+
+Templates for implementing a new CPU component are available in the *components/component_template* subdirectory.
+
+
+### Adding Your Own GPU Component
+
+To add a GPU component, place a new header file in the *components* subdirectory whose file name must start with "d_" (for "device"). The header file must include the encoder and decoder functions and may include helper functions (with globally unique names). The name of the encoder function must be identical to the header file name without the extension. The name of the decoder function must be the same except it needs to include an "i" (for "inverse") after the first underscore. For example, the **NAME_4** component's header file for GPU execution must be named **d_NAME_4.h** and must contain an encoder function called **d_NAME_4** and a decoder function called **d_iNAME_4**.
+
+The prototype of a GPU encoder is:
+
+    static __device__ inline bool d_NAME_4(int& csize, byte in[CS], byte out[CS], byte temp[CS]);
+
+This function returns false if the encoded data does not fit in the out array and true otherwise.
+
+The prototype of a GPU decoder is:
+
+    static __device__ inline void d_iNAME_4(int& csize, byte in[CS], byte out[CS], byte temp[CS]);
+
+The encoder and decoder functions must losslessly transform the first csize bytes of the *in* array and write the result to the *out* array. They must update *csize* if the transformed data has a different size than the input. The code must run in a single thread block and cannot use global variables so as not to interfere with LC's performance optimizations and automatic parallelization across thread blocks. Furthermore, the code must not allocate any "\_\_shared\_\_" memory. Instead, it should use the *temp* array for obtaining shared memory (e.g., int\* buf = (int\*)&temp;). Note that both functions are allowed to change the contents of the *in*, the *out*, and the *temp* arrays. The three arrays are guaranteed to start at an 8-byte aligned address.
+
+Templates for implementing a new GPU component are available in the *components/component_template* subdirectory.
+
+
+### Example of a CPU Component
+
+The following code provides a simple example of a CPU component called **INC_1** that adds 1 to each byte ("_1"). It can be invoked, for instance, using the *./lc input EX "" "INC_1 .+"* command line.
+
+    static inline bool h_INC_1(int& csize, const byte in [CS], byte out [CS])
+    {
+      for (int i = 0; i < csize; i++) {
+        out[i] = in[i] + 1;
+      }
+      return true;
+    }
+
+    static inline void h_iINC_1(int& csize, const byte in [CS], byte out [CS])
+    {
+      for (int i = 0; i < csize; i++) {
+        out[i] = in[i] - 1;
+      }
+    }
+
+
+### Example of a GPU Component
+
+The following code provides a simple example of a GPU component called **INC_1** that adds 1 to each byte ("_1"). /TPB/ stands for "threads per block" and is a predefined variable in LC. The component can be invoked, for instance, using the *./lc input EX "" "INC_1 .+"* command line.
+
+    static __device__ inline bool d_INC_1(int& csize, byte in [CS], byte out [CS], byte temp [CS])
+    {
+      for (int i = threadIdx.x; i < csize; i += TPB) {
+        out[i] = in[i] + 1;
+      }
+      return true;
+    }
+
+    static __device__ inline void d_iINC_1(int& csize, byte in [CS], byte out [CS], byte temp [CS])
+    {
+      for (int i = threadIdx.x; i < csize; i += TPB) {
+        out[i] = in[i] - 1;
+      }
+    }
+
+
+---
+
+
+## Adding and Removing Preprocessors
+
+LC users can add and delete preprocessors. To remove a preprocessor from the library, simple delete the corresponding header files from the *preprocessors* subdirectory.
+
+
+### Adding Your Own CPU Preprocessor
+
+To add a CPU preprocessor, place a new header file in the *preprocessors* subdirectory whose file name must start with "h_" (for "host"). The header file must include the encoder and decoder functions and may include helper functions (with globally unique names). The name of the encoder function must be identical to the header file name without the extension. The name of the decoder function must be the same except it needs to include an "i" (for "inverse") after the first underscore. For example, the **PRE_f32** preprocessor's header file for CPU execution must be named **h_PRE_f32.h** and must contain an encoder function called **h_PRE_f32** and a decoder function called **h_iPRE_f32**.
+
+The prototype of a CPU preprocessor encoder is:
+
+    static inline void h_PRE_f32(long long& size, byte*& data, const int paramc, const double paramv[]);
+
+The prototype of a CPU preprocessor decoder is:
+
+    static inline void h_iPRE_f32(long long& size, byte*& data, const int paramc, const double paramv[]);
+
+The encoder and decoder functions transform *size* bytes in the *data* array and write the result either back to the *data* array or to a new array and then make *data* point to this new array (and deallocate the old *data* array). If the number of bytes changes, *size* must be updated accordingly. The *data* array must start at an 8-byte aligned address. The *paramc* argument specifies the number of elements in the *paramv* array. The *paramv* array passes the command-line arguments provided to this preprocessor (e.g., the error bound, threshold, etc.). The two functions must be manually parallelized using OpenMP if desired.
+
+Templates for implementing a new CPU preprocessor are available in the *preprocessors/preprocessor_template* subdirectory.
+
+
+### Adding Your Own GPU Preprocessor
+
+To add a GPU preprocessor, place a new header file in the *preprocessors* subdirectory whose file name must start with "d_" (for "device"). The header file must include the encoder and decoder functions and may include helper functions (with globally unique names). The name of the encoder function must be identical to the header file name without the extension. The name of the decoder function must be the same except it needs to include an "i" (for "inverse") after the first underscore. For example, the **PRE_f32** preprocessor's header file for GPU execution must be named **d_PRE_f32.h** and must contain an encoder function called **d_PRE_f32** and a decoder function called **d_iPRE_f32**.
+
+The prototype of a GPU preprocessor encoder is:
+
+    static inline void d_PRE_f32(long long& size, byte*& data, const int paramc, const double paramv[]);
+
+The prototype of a GPU preprocessor decoder is:
+
+    static inline void d_iPRE_f32(long long& size, byte*& data, const int paramc, const double paramv[]);
+
+The encoder and decoder functions transform *size* bytes in the *data* array and write the result either back to the *data* array or to a new array and then make *data* point to this new array (and deallocate the old *data* array). If the number of bytes changes, *size* must be updated accordingly. The *data* array must start at an 8-byte aligned address. The *paramc* argument specifies the number of elements in the *paramv* array. The *paramv* array passes the command-line arguments provided to this preprocessor (e.g., the error bound, data set dimensionality, etc.). The two functions run on the host and must invoke appropriate kernels to perform the preprocessing. The kernels are allowed to allocate and use shared memory. Note that the *data* array is allocated on the GPU and cannot be directly accessed from the host code.
+
+Templates for implementing a new GPU preprocessor are available in the *preprocessors/preprocessor_template* subdirectory.
+
+
+### Example of a CPU Preprocessor
+
+The following code provides an example of a CPU preprocessor called **ADD_i32** that adds a user-provided constant to each 32-bit integer ("_i32"). It can be invoked, for example, using the *./lc input EX "ADD_i32(7)" ".+"* command line.
+
+    static inline void h_ADD_i32(long long& size, byte*& data, const int paramc, const double paramv [])
+    {
+      assert(paramc == 1);
+      assert(size % sizeof(int) == 0);
+
+      int* const idata = (int*)data;
+      const int offset = paramv[0];
+
+      #pragma omp parallel for default(none) shared(size, idata, offset)
+      for (int i = 0; i < size / sizeof(int); i++) {
+        idata[i] += offset;
+      }
+    }
+
+    static inline void h_iADD_i32(long long& size, byte*& data, const int paramc, const double paramv [])
+    {
+      assert(paramc == 1);
+      assert(size % sizeof(int) == 0);
+
+      int* const idata = (int*)data;
+      const int offset = paramv[0];
+
+      #pragma omp parallel for default(none) shared(size, idata, offset)
+      for (int i = 0; i < size / sizeof(int); i++) {
+        idata[i] -= offset;
+      }
+    }
+
+
+---
+
+
+## Notes
+
+The March 2025 and later releases of LC are not compatible with the files produced by earlier releases because the new releases support file sizes above 2 GB.
+
+LC currently only works on little-endian systems.
+
+For testing, you can generate the LC framework using the *generate_Hybrid_LC-Framework.py* script. This will include all components and preprocessors for which both CPU and GPU versions exist, i.e., whose names match except for the leading "h_" and "d_". Running the resulting code will redundantly perform the compression and decompression on both devices and, importantly, compare the results bit for bit. This is useful to ensure that the CPU and GPU implementations of all components and preprocessors produce the exact same compressed and decompressed data.
+
+
+## Third-Party LC Codes
+
+Rust bindings for LC: https://github.com/juntyr/lc-framework-rs
+
+Numcodecs LC implementation: https://github.com/juntyr/numcodecs-rs/tree/main/codecs/lc
+
+
+---
+
+## Team
+
+The LC framework is being developed at Texas State University by Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Anju Mongandampulath Akathoott under the supervision of Prof. Martin Burtscher and is joint work with Sheng Di and Franck Cappello from Argonne National Laboratory.
+
+
+## Sponsor
+
+This project is based upon work supported by the U.S. Department of Energy, Office of Science, Office of Advanced Scientific Research (ASCR), under contract DE-SC0022223.
+
+
+## License
+
+BSD 3-Clause
