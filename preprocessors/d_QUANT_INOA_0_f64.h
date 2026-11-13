@@ -37,6 +37,12 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 */
 
 
+#include <thrust/extrema.h>
+#include <thrust/pair.h>
+#include <thrust/execution_policy.h>
+#include <thrust/device_ptr.h>
+
+
 static __global__ void d_QUANT_INOA_0_f64_kernel(const long long len, const unsigned long long* const __restrict__ orig_data_u, unsigned long long* const __restrict__ data_u, const int eb_e, const int thr_e, const long long offs)
 {
   const int e = 11;  // exponent bits

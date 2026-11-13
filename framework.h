@@ -49,9 +49,13 @@ static const int max_stages = 8;  // cannot be more than 8
 #include <cstdio>
 #include <string>
 #include <cstring>
+#ifndef _MSC_VER
 #include <strings.h>
+#endif
 #include <cassert>
+#ifndef _MSC_VER
 #include <unistd.h>
+#endif
 #include <limits>
 #include <algorithm>
 #include <vector>
@@ -60,7 +64,9 @@ static const int max_stages = 8;  // cannot be more than 8
 #include <ctime>
 #include <regex>
 #include <stdexcept>
+#ifndef _MSC_VER
 #include <sys/time.h>
+#endif
 
 
 #if defined(_OPENMP)
@@ -218,7 +224,7 @@ static void h_preprocess_decode(long long& hpredecsize, byte*& hpredecdata, std:
 #ifdef USE_GPU
 static __global__ void initBestSize(unsigned short* const bestSize, const int chunks)
 {
-  if ((threadIdx.x == 0) && (WS != warpSize)) {printf("ERROR: WS must be %d\n\n", warpSize); __trap();}  // debugging only
+  if ((threadIdx.x == 0) && (WS != warpSize)) {printf("ERROR: WS must be %d\n\n", (int)warpSize); __trap();}  // debugging only
   for (int i = threadIdx.x; i < chunks; i += TPB) {
     bestSize[i] = CS;
   }

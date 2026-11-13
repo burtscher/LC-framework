@@ -56,7 +56,7 @@ int main(int argc, char* argv [])
   #endif
 #else
   #ifndef USE_CPU
-    #if defined(__AMDGCN_WAVEFRONT_SIZE)
+    #if defined(__HIP_PLATFORM_AMD__)
     printf("AMD ");
     #endif
   printf("GPU version\n");

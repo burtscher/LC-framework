@@ -42,7 +42,14 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 using byte = unsigned char;
 static const int CS = 1024 * 16;  // chunk size (in bytes) [must be multiple of 8]
 static const int TPB = 512;  // threads per block [must be power of 2 and at least 128]
-#if defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64)
+// Wave width is resolved in the device compilation pass: ROCm 7.x no longer
+// predefines __AMDGCN_WAVEFRONT_SIZE, so select wave64 on GCN/CDNA (__GFX8__/
+// __GFX9__) and wave32 elsewhere (RDNA and the CUDA path), while still honoring
+// __AMDGCN_WAVEFRONT_SIZE where a compiler does predefine it.  These are all
+// compiler predefines, so the selection needs no header to have been included
+// and none of them exist under nvcc or under a host compiler.
+#if defined(__GFX8__) || defined(__GFX9__) || \
+    (defined(__AMDGCN_WAVEFRONT_SIZE) && (__AMDGCN_WAVEFRONT_SIZE == 64))
 #define WS 64
 #else
 #define WS 32
